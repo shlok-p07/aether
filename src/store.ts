@@ -241,29 +241,57 @@ export function importBackup(text: string) {
     throw new Error("This file isn't an Aether backup. Choose the .json file that Export saved.")
   }
   if (parsed?.app !== 'aether' || !parsed.data) throw new Error("This file isn't an Aether backup. Choose the .json file that Export saved.")
-  const b = normalize(parsed.data)
-  const n = { liked: 0, playlists: 0, plays: 0 }
+  const merged = mergeLibraries(store.get(), normalize(parsed.data))
+  store.set((s) => ({ ...s, ...syncedPart(merged.state), key: s.key }))
+  return merged.added
+}
+
+/**
+ * Union of two libraries: nothing in either is lost. `a` is this device; `b` is the other copy.
+ * Used by backup import and the first time a device signs in.
+ */
+export function mergeLibraries(a: State, b: State) {
+  const added = { liked: 0, playlists: 0, plays: 0 }
+  const likedIds = new Set(a.liked.map((t) => t.id))
+  const liked = [...a.liked, ...b.liked.filter((t) => !likedIds.has(t.id) && likedIds.add(t.id))]
+  added.liked = liked.length - a.liked.length
+  const plIds = new Set(a.playlists.map((p) => p.id))
+  const newPls = b.playlists.filter((p) => !plIds.has(p.id))
+  added.playlists = newPls.length
+  const plays = { ...a.plays }
+  for (const [id, p] of Object.entries(b.plays)) {
+    const cur = plays[id]
+    if (!cur) added.plays += p.n
+    else if (p.n > cur.n) added.plays += p.n - cur.n
+    plays[id] = cur ? { ...cur, n: Math.max(cur.n, p.n), last: Math.max(cur.last, p.last), skips: Math.max(cur.skips ?? 0, p.skips ?? 0) || undefined } : p
+  }
+  const seenH = new Set(a.history.map((h) => h.t.id))
+  const history = [...a.history, ...b.history.filter((h) => !seenH.has(h.t.id) && seenH.add(h.t.id))].sort((x, y) => y.at - x.at).slice(0, 200)
+  const seenE = new Set(a.events.map((e) => `${e.id}@${e.at}`))
+  const events = [...a.events, ...b.events.filter((e) => !seenE.has(`${e.id}@${e.at}`))].sort((x, y) => y.at - x.at).slice(0, MAX_EVENTS)
+  const recent = [...a.recent, ...b.recent.filter((q) => !a.recent.includes(q))].slice(0, 8)
+  return { state: { ...a, liked, playlists: [...a.playlists, ...newPls], plays, history, events, recent, key: a.key ?? b.key }, added }
+}
+
+// ---------- sync between devices ----------
+
+/** What follows you between devices when you sign in. Volume stays per device. */
+export const SYNCED = ['key', 'accent', 'liked', 'playlists', 'history', 'plays', 'events', 'recent', 'autoplay', 'lyrics', 'about'] as const
+export type Synced = Pick<State, (typeof SYNCED)[number]>
+export const syncedPart = (s: State): Synced => Object.fromEntries(SYNCED.map((k) => [k, s[k]])) as Synced
+export const parseSynced = (data: unknown): State => normalize((data ?? {}) as Partial<State>)
+
+/** Takes another device's copy as the truth (last change wins, so deletions carry over). A missing key never erases this device's key. */
+export function applySynced(data: State) {
+  store.set((s) => ({ ...s, ...syncedPart(data), key: data.key ?? s.key }))
+}
+
+/** First sign-in on a device: keep everything from both, and take the account's settings when it has some. */
+export function joinAccount(cloud: State) {
   store.set((s) => {
-    const likedIds = new Set(s.liked.map((t) => t.id))
-    const liked = [...s.liked, ...b.liked.filter((t) => !likedIds.has(t.id) && likedIds.add(t.id))]
-    n.liked = liked.length - s.liked.length
-    const plIds = new Set(s.playlists.map((p) => p.id))
-    const newPls = b.playlists.filter((p) => !plIds.has(p.id))
-    n.playlists = newPls.length
-    const plays = { ...s.plays }
-    for (const [id, p] of Object.entries(b.plays)) {
-      const cur = plays[id]
-      if (!cur) n.plays += p.n
-      else if (p.n > cur.n) n.plays += p.n - cur.n
-      plays[id] = cur ? { ...cur, n: Math.max(cur.n, p.n), last: Math.max(cur.last, p.last), skips: Math.max(cur.skips ?? 0, p.skips ?? 0) || undefined } : p
-    }
-    const seenH = new Set(s.history.map((h) => h.t.id))
-    const history = [...s.history, ...b.history.filter((h) => !seenH.has(h.t.id) && seenH.add(h.t.id))].sort((x, y) => y.at - x.at).slice(0, 200)
-    const seenE = new Set(s.events.map((e) => `${e.id}@${e.at}`))
-    const events = [...s.events, ...b.events.filter((e) => !seenE.has(`${e.id}@${e.at}`))].sort((x, y) => y.at - x.at).slice(0, MAX_EVENTS)
-    return { ...s, liked, playlists: [...s.playlists, ...newPls], plays, history, events }
+    const { state } = mergeLibraries(s, cloud)
+    return { ...s, ...syncedPart(state), accent: cloud.accent, autoplay: cloud.autoplay, lyrics: cloud.lyrics || s.lyrics, about: cloud.about || s.about }
   })
-  return n
 }
 
 // ---------- personalization (all local) ----------

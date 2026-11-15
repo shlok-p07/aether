@@ -4,6 +4,7 @@ import { ACCENTS, actions, skippedOften, store, useStore, type Track } from './s
 import { artistSongs, art } from './data/youtube'
 import { readShareLink } from './data/share'
 import { ambientColor } from './data/ambient'
+import { sync } from './data/sync'
 import { NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
 import { YouTubeStage, type YTHandle, type YTState } from './components/YouTubeStage'
 import { NowPlaying, PlayerBar, Sidebar, TabBar } from './components/chrome'
@@ -378,6 +379,11 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [toggle, next, prev, setShuffle, cycleRepeat, nav])
+
+  // Optional sign-in and sync between devices (does nothing unless Firebase is configured).
+  useEffect(() => {
+    sync.start()
+  }, [])
 
   // Ambient colour: the playing (or last played) song's artwork tints the shell.
   const lastId = useStore((s) => s.history[0]?.t.id ?? null)

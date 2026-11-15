@@ -9,6 +9,7 @@ import {
 import { ago, fmtLong, fmtTime, songs, useAsync, useNav, usePlayer, type SongTab } from './app/context'
 import { LyricsView } from './components/lyrics'
 import { AboutView } from './components/about'
+import { AccountSettings, SignInNudge } from './components/account'
 import { Art, Cards, Loadable, PlayAll, Shelf, ShuffleAll, TrackRows } from './components/bits'
 import { YouTubeSetup } from './components/YouTubeSetup'
 
@@ -129,6 +130,7 @@ export function Home() {
         <p className="page-sub">{subtitle}</p>
       </header>
 
+      {!key && <SignInNudge />}
       {!key && <YouTubeSetup />}
 
       {top.length >= 3 ? (
@@ -901,6 +903,8 @@ export function Settings() {
         <h1>Settings</h1>
       </header>
 
+      <AccountSettings />
+
       <section className="settings-group" aria-labelledby="set-accent">
         <h2 id="set-accent">Accent colour</h2>
         <div className="swatches" role="radiogroup" aria-labelledby="set-accent">
@@ -985,8 +989,9 @@ export function Settings() {
       <section className="settings-group" aria-labelledby="set-about">
         <h2 id="set-about">About</h2>
         <p className="page-sub prose">
-          Aether is free and adds no ads. Songs play in YouTube's own player, which may show YouTube's ads, and their sound is never changed. Your likes,
-          playlists and history stay in this browser. Nothing is sent anywhere except requests to YouTube, plus song titles to LRCLIB, Wikipedia and MusicBrainz if you turn on lyrics or song background.
+          Aether is free and adds no ads. Songs play in YouTube's own player, which may show YouTube's ads, and their sound is never changed. Without an
+          account, your library stays in this browser. If you sign in, it's also saved to your account so your devices stay in sync. Song titles go to LRCLIB,
+          Wikipedia and MusicBrainz only if you turn on lyrics or song background.
         </p>
       </section>
     </div>

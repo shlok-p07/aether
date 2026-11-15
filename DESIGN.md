@@ -370,6 +370,12 @@ A definition list of facts (Released, Album, Written by, Produced by, Label, Art
 ### Song Page
 Opened by tapping the playing song's title in the player dock (a 44px tappable block with a 6% wash on hover-capable devices only) or the lyrics button. The page title is the song, the subtitle the artist, then the Lyrics / About segmented control.
 
+### Account and Sync
+- **Continue with Google:** Google's dark-theme sign-in button as its branding guidelines specify (#131314 fill, #8e918f outline, #e3e3e3 15px/600 label, the full-colour G mark), shaped as a 44px pill. It is the only multi-colour element in the chrome, because Google's mark requires it.
+- **Sidebar account chip:** at the foot of the sidebar. Signed out, a quiet side item "Sign in to sync" with a cloud icon. Signed in, a 52px hairline tile with a 32px avatar (Google photo, or the initial on raised graphite), the name at 15px/600 and a 13px status line with an icon: "Synced just now", "Syncing…", "Offline · will sync when you reconnect". It opens Settings.
+- **Settings → Account:** the first settings group. Signed out: one sentence on what sign-in keeps in sync and that everything works without it, then the Google button. Signed in: a 48px avatar, name, email and status, then quiet Sign out and Delete saved library pills (deletion asks inside a red-outlined confirm) and the note that signing out keeps the library on the device. Warning states colour the status #ffd60a and always say it in words.
+- **New-device prompt:** on Home, above the YouTube setup card, only when no key is set and nobody is signed in: "Already use Aether?" with the Google button, so a returning listener skips setup entirely.
+
 ## Do's and Don'ts
 
 ### Do:

@@ -9,6 +9,7 @@ import { fmtTime, useNav, usePlayer, type Page } from '../app/context'
 import { Art, LikeButton, TrackMenu } from './bits'
 import { LyricsView } from './lyrics'
 import { AboutView } from './about'
+import { SidebarAccount } from './account'
 
 const NAV: { page: Page; label: string; icon: ReactNode }[] = [
   { page: { name: 'home' }, label: 'Home', icon: <HomeIcon size={20} strokeWidth={1.75} aria-hidden="true" /> },
@@ -68,6 +69,7 @@ export function Sidebar() {
           </li>
         ))}
       </ul>
+      <SidebarAccount />
     </nav>
   )
 }

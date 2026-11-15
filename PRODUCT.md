@@ -20,13 +20,14 @@ A free, ad-free-by-Aether music app with a personalized dashboard. It covers sea
 
 ## Positioning
 
-Your home is built from your own listening. It is computed locally from what you play, like and save, with no account, no tracking server, and no ads added by Aether.
+Your home is built from your own listening. It is computed from what you play, like and save, with no tracking, no analytics and no ads added by Aether. An account is optional: signing in with Google only keeps your library the same on every device.
 
 ## Operating Context
 
 - Catalog and playback: YouTube only (official artist, label and "Topic" channels ranked first).
 - The listener supplies a free YouTube Data API key (about 100 searches a day). Trending, artist pages and playback cost very little of it.
-- Personal data (likes, playlists, history, settings, key) lives only in this browser's localStorage.
+- Personal data (likes, playlists, history, stats, settings, key) lives in this browser's localStorage. Optional Google sign-in (Firebase Auth + one Firestore document per person, readable only by them) syncs it across devices: merge on a device's first sign-in, then live with the latest change winning. Volume stays per device. Firebase loads only when someone signs in.
+- Getting started for non-technical listeners: a returning listener taps "Continue with Google" and their key and library arrive; a new listener gets a free YouTube key in three plain steps and pastes it, which connects instantly. The user chose to keep per-listener YouTube keys rather than one shared key.
 
 ## Capabilities and Constraints
 

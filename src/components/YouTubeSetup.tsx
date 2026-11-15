@@ -2,16 +2,17 @@ import { useState, type FormEvent } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { checkKey, YouTubeError } from '../data/youtube'
 import { actions } from '../store'
+import { useSync } from '../data/sync'
 
 /** Walks the listener through getting a free YouTube Data API key, then checks it before saving. */
 export function YouTubeSetup({ compact }: { compact?: boolean }) {
   const [open, setOpen] = useState(!compact)
+  const signInAvailable = useSync().configured
   const [key, setKey] = useState('')
   const [state, setState] = useState<{ kind: 'idle' | 'checking' | 'error'; msg?: string }>({ kind: 'idle' })
 
-  const save = async (e: FormEvent) => {
-    e.preventDefault()
-    const k = key.trim()
+  const connect = async (raw: string) => {
+    const k = raw.trim()
     if (!k) return
     setState({ kind: 'checking' })
     try {
@@ -21,6 +22,12 @@ export function YouTubeSetup({ compact }: { compact?: boolean }) {
       setState({ kind: 'error', msg: err instanceof YouTubeError ? err.message : "Couldn't check the key. Try again." })
     }
   }
+  const save = (e: FormEvent) => {
+    e.preventDefault()
+    connect(key)
+  }
+  // Keys look like "AIza" + 35 characters: when one is pasted, connect straight away.
+  const looksLikeKey = (v: string) => /^AIza[0-9A-Za-z_-]{35}$/.test(v.trim())
 
   if (!open) {
     return (
@@ -35,33 +42,41 @@ export function YouTubeSetup({ compact }: { compact?: boolean }) {
 
   return (
     <div className="yt-setup">
-      <h2 className="yt-setup-title">Connect YouTube to get every song</h2>
+      <h2 className="yt-setup-title">Connect YouTube once to get every song</h2>
       <p>
-        Aether plays official songs from YouTube. To search them it needs a free YouTube API key. Getting one takes about two minutes, and it
-        stays only in this browser.
+        Aether finds songs through YouTube, which asks for a free key. It takes about two minutes with your Google account, and you only do it once.
       </p>
       <ol className="yt-steps">
         <li>
-          Open{' '}
           <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer">
-            YouTube Data API v3 <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
+            Open this YouTube page <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
           </a>{' '}
-          in Google Cloud (create a free project if asked), then press <strong>Enable</strong>.
+          and press <strong>Enable</strong>. If Google asks you to agree to terms or create a project, say yes; any project name works.
         </li>
         <li>
-          Go to{' '}
           <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
-            Credentials <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
+            Open this keys page <ExternalLink size={12} strokeWidth={2} aria-hidden="true" />
           </a>
-          , choose <strong>Create credentials → API key</strong>, and copy it.
+          , press <strong>Create credentials</strong>, choose <strong>API key</strong>, and copy the key it shows.
         </li>
-        <li>Paste it below.</li>
+        <li>Paste it here. Aether connects as soon as you paste.</li>
       </ol>
       <form className="new-form" onSubmit={save}>
         <input
           value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder="Paste your API key"
+          onChange={(e) => {
+            setKey(e.target.value)
+            if (state.kind === 'error') setState({ kind: 'idle' })
+          }}
+          onPaste={(e) => {
+            const v = e.clipboardData.getData('text')
+            if (looksLikeKey(v)) {
+              e.preventDefault()
+              setKey(v.trim())
+              connect(v)
+            }
+          }}
+          placeholder="Paste your key here"
           aria-label="YouTube API key"
           autoComplete="off"
           spellCheck={false}
@@ -75,7 +90,9 @@ export function YouTubeSetup({ compact }: { compact?: boolean }) {
           {state.msg}
         </p>
       )}
-      <p className="yt-fine">A free key covers about 100 searches a day. Home, trending, artist pages and playback barely use it.</p>
+      <p className="yt-fine">
+        A free key covers about 100 searches a day; playing songs doesn't use it.{signInAvailable ? ' Signed in, your key follows you to every device.' : ''}
+      </p>
     </div>
   )
 }

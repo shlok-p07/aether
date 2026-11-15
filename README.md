@@ -115,6 +115,8 @@ A free key includes 10,000 quota units a day. The quota resets at midnight Pacif
 
 Search runs only when you press Enter, never on each keystroke.
 
+Aether shows how many searches you have left today under the search box, and the full count in **Settings** > **YouTube**. YouTube doesn't report remaining quota to apps, so this is an estimate. Aether adds up what each request from that browser costs, starts again at midnight Pacific time, and shows the quota as used up when YouTube says it is. Searches from your other devices aren't included. When you use the shared server, Aether hides the count because all users share that quota.
+
 ## Configuring environment variables
 
 Aether reads these optional variables at build time. For local development, put them in a `.env.local` file. Git ignores that file.
@@ -228,7 +230,7 @@ You can turn lyrics and song background on or off in **Settings**. Under **Setti
 
 ## Known limitations
 
-- **Visible player only.** YouTube's terms require the player to stay visible, so audio-only background playback isn't available. On phones, the video sits at the top of the screen.
+- **Visible player only.** YouTube's terms require the player to stay visible, so audio-only background playback isn't available. On phones, the video sits at the top of the screen. Phone browsers pause the player when the screen locks, so while a song plays, Aether keeps the screen on. To turn this off, go to **Settings** > **Playback** > **Keep screen on while playing**. Music stops when you lock the phone or switch to another app.
 - **Some videos don't play.** Some owners allow playback only on youtube.com. Aether skips those videos and tells you why.
 - **Sync conflicts.** If two signed-in devices change the library within the same second or two, the later change wins.
 - **Sync needs setup.** Sign-in appears only when the deployment has [Firebase configured](#setting-up-sign-in-and-sync). Without it, use a backup file to move your library.

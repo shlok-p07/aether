@@ -31,6 +31,7 @@ export type State = {
   recent: string[]
   volume: number
   autoplay: boolean
+  awake: boolean // keep a phone's screen on while music plays (this device only, not synced)
   lyrics: boolean
   about: boolean
 }
@@ -49,6 +50,7 @@ const fresh = (): State => ({
   recent: [],
   volume: 80,
   autoplay: true,
+  awake: true,
   lyrics: false,
   about: false,
 })
@@ -120,6 +122,7 @@ function normalize(s: Partial<State>, base = fresh()): State {
     recent: Array.isArray(s.recent) ? s.recent.filter((x) => typeof x === 'string').slice(0, 8) : [],
     volume: typeof s.volume === 'number' ? Math.min(100, Math.max(0, s.volume)) : base.volume,
     autoplay: s.autoplay !== false,
+    awake: s.awake !== false,
     lyrics: s.lyrics === true,
     about: s.about === true,
   }

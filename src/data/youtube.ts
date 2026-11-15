@@ -1,4 +1,5 @@
 import type { Track } from '../store'
+import { quota } from './quota'
 
 /**
  * YouTube Data API v3 with the listener's own free key.
@@ -34,17 +35,31 @@ async function call<T>(path: string, params: Record<string, string>, key: string
   try {
     res = await fetch(url, { signal })
   } catch (e) {
-    if ((e as Error).name === 'AbortError') throw e
+    if ((e as Error).name === 'AbortError') {
+      // Cancelled because the listener moved on; YouTube has most likely received and charged it already.
+      if (!shared) quota.spend(key, path === '/search' ? 100 : 1)
+      throw e
+    }
     throw new YouTubeError('network', "Couldn't reach YouTube. Check your connection.")
   }
-  if (res.ok) return (await res.json()) as T
+  // Count what this request cost (the shared server's quota belongs to everyone, so it isn't counted here).
+  const cost = path === '/search' ? 100 : 1
+  if (res.ok) {
+    if (!shared) quota.spend(key, cost)
+    return (await res.json()) as T
+  }
   let reason = ''
   try {
     reason = ((await res.json()) as { error?: { errors?: { reason?: string }[] } }).error?.errors?.[0]?.reason ?? ''
   } catch {
     /* empty */
   }
-  if (reason.includes('quota') || reason === 'rateLimitExceeded') {
+  const outOfQuota = /quota|dailyLimit/i.test(reason) || reason === 'rateLimitExceeded'
+  if (!shared) {
+    if (/quota|dailyLimit/i.test(reason)) quota.exhausted(key) // a per-second rate limit isn't the daily limit
+    else quota.spend(key, cost) // YouTube charges for refused requests too
+  }
+  if (outOfQuota) {
     throw new YouTubeError(
       'quota',
       shared

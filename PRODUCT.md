@@ -32,7 +32,7 @@ Your home is built from your own listening. It is computed from what you play, l
 ## Capabilities and Constraints
 
 - **No audio modification of any kind.** YouTube's terms forbid altering its audio, and the user explicitly asked to remove all sound-editing features. That means no EQ, no effects and no tempo changes. Volume is the only control.
-- The YouTube player must stay visible (at least 200×200) while it plays. Background-only playback is not allowed.
+- The YouTube player must stay visible (at least 200×200) while it plays. Background-only playback is not allowed, including screen-off playback on phones (the user asked for it; it is out of scope under YouTube's terms). The allowed substitute: on touch devices Aether holds a Screen Wake Lock while a song plays, so the phone doesn't lock mid-song (Settings → Playback, on by default, per device).
 - YouTube may show its own ads inside its player. Aether adds none and must not block YouTube's.
 - Personalization is local, from a listening log of seconds actually heard and early skips:
   - recently played

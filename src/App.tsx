@@ -5,6 +5,7 @@ import { artistSongs, art } from './data/youtube'
 import { readShareLink } from './data/share'
 import { ambientColor } from './data/ambient'
 import { sync } from './data/sync'
+import { useKeepAwake } from './app/wakelock'
 import { NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
 import { YouTubeStage, type YTHandle, type YTState } from './components/YouTubeStage'
 import { NowPlaying, PlayerBar, Sidebar, TabBar } from './components/chrome'
@@ -344,6 +345,10 @@ export default function App() {
       else setToast("This share link is damaged or incomplete. Ask for the link again.")
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep a phone's screen on while a song plays, so it doesn't lock (and pause) mid-song.
+  const awake = useStore((s) => s.awake)
+  useKeepAwake(playing && awake)
 
   // Lock screen / media keys
   useEffect(() => {

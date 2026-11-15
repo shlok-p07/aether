@@ -12,6 +12,8 @@ import { AboutView } from './components/about'
 import { AccountSettings, SignInNudge } from './components/account'
 import { Art, Cards, Loadable, PlayAll, Shelf, ShuffleAll, TrackRows } from './components/bits'
 import { YouTubeSetup } from './components/YouTubeSetup'
+import { QuotaHint, QuotaMeter } from './components/quota'
+import { canKeepAwake } from './app/wakelock'
 
 const EXPLORE = ['Pop hits', 'Hip-hop', 'R&B', 'Bollywood', 'K-pop', 'Latin', 'Afrobeats', 'Rock', 'EDM', 'Lo-fi', 'Chill', 'Workout', 'Focus', 'Party', 'Throwbacks', 'Country']
 
@@ -264,6 +266,7 @@ export function Search({ initial }: { initial?: string }) {
           Search
         </button>
       </form>
+      <QuotaHint apiKey={key} />
 
       {local && (local.tracks.length > 0 || local.playlists.length > 0) && (
         <Shelf title="In your library">
@@ -926,6 +929,17 @@ export function Settings() {
           </span>
           <input type="checkbox" role="switch" checked={s.autoplay} onChange={(e) => actions.set('autoplay', e.target.checked)} />
         </label>
+        {canKeepAwake && (
+          <label className="switch-row">
+            <span>
+              <span className="switch-title">Keep screen on while playing</span>
+              <span className="switch-sub">
+                YouTube's player stops when your phone locks, so Aether keeps the screen on while a song plays. It turns off as usual when you pause.
+              </span>
+            </span>
+            <input type="checkbox" role="switch" checked={s.awake} onChange={(e) => actions.set('awake', e.target.checked)} />
+          </label>
+        )}
         <label className="switch-row">
           <span>
             <span className="switch-title">Lyrics</span>
@@ -957,7 +971,8 @@ export function Settings() {
           </>
         ) : s.key ? (
           <>
-            <p className="page-sub">Connected with your API key (stored only in this browser).</p>
+            <p className="page-sub">Connected with your own API key.</p>
+            <QuotaMeter apiKey={s.key} />
             {confirmKey ? (
               <div className="head-actions">
                 <button

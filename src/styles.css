@@ -1546,6 +1546,53 @@ button.now-artist:hover {
   grid-template-columns: 140px minmax(0, 1fr);
 }
 
+/* Mixes: artists named in the title, and the uploader's tracklist. */
+.mix-artists {
+  display: grid;
+  gap: 8px;
+}
+.tracklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  width: 100%;
+}
+.track-cue {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-2);
+  font-size: 15px;
+  text-align: left;
+}
+.track-cue:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.track-cue.is-now {
+  color: var(--text);
+  font-weight: 600;
+}
+.track-cue.is-now .cue-time {
+  color: var(--accent);
+}
+.cue-time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.cue-label {
+  overflow-wrap: anywhere;
+}
+
 /* ---------- lyrics ---------- */
 
 .now-lyrics {

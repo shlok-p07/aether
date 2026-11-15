@@ -1,8 +1,36 @@
 import { useEffect, useRef, useState } from 'react'
-import { LocateFixed, RotateCw } from 'lucide-react'
+import { LocateFixed, RotateCw, Search } from 'lucide-react'
 import { getLyrics } from '../data/lyrics'
-import { actions, useStore } from '../store'
-import { useAsync, usePlayer } from '../app/context'
+import { isMix, mixArtists } from '../data/mix'
+import { actions, useStore, type Track } from '../store'
+import { useAsync, useNav, usePlayer } from '../app/context'
+
+/** Said instead of "no lyrics found" when the video is a DJ mix or compilation. */
+export function MixNotice({ t, what }: { t: Track; what: 'lyrics' | 'about' }) {
+  const nav = useNav()
+  const names = mixArtists(t.title)
+  return (
+    <div className="notice">
+      <p>
+        {what === 'lyrics'
+          ? 'This video is a mix of many songs, so it has no single set of lyrics. Play one of the songs on its own to see its lyrics.'
+          : 'This video is a mix of many songs, so it has no single release date, album or story.'}
+      </p>
+      {names.length > 0 && (
+        <div className="mix-artists">
+          <p className="field-label">Artists in this mix</p>
+          <div className="chips">
+            {names.map((n) => (
+              <button key={n} className="chip" onClick={() => nav.go({ name: 'search', q: n })}>
+                <Search size={14} strokeWidth={2} aria-hidden="true" /> {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 /** Explains what turning lyrics on sends where, and turns it on. */
 export function LyricsOptIn() {
@@ -24,7 +52,8 @@ export function LyricsView({ where }: { where: 'rail' | 'page' }) {
   const player = usePlayer()
   const t = player.current
   const on = useStore((s) => s.lyrics)
-  const a = useAsync(t && on ? (sig) => getLyrics(t, sig) : null, [t?.id, on])
+  const mix = !!t && isMix(t)
+  const a = useAsync(t && on && !mix ? (sig) => getLyrics(t, sig) : null, [t?.id, on, mix])
   const box = useRef<HTMLDivElement>(null)
   const [follow, setFollow] = useState(true)
 
@@ -42,8 +71,9 @@ export function LyricsView({ where }: { where: 'rail' | 'page' }) {
     el.scrollTo({ top: line.offsetTop - el.clientHeight / 3, behavior: reduce ? 'auto' : 'smooth' })
   }, [at, follow])
 
-  if (!on) return <LyricsOptIn />
   if (!t) return <p className="now-hint">Play a song to see its lyrics.</p>
+  if (mix) return <MixNotice t={t} what="lyrics" />
+  if (!on) return <LyricsOptIn />
   if (a.status === 'loading' && !a.data) return <p className="now-hint">Looking up lyrics…</p>
   if (a.status === 'error')
     return (

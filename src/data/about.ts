@@ -10,7 +10,7 @@ import { videoDescription } from './youtube'
  * MusicBrainz and Wikipedia are only asked when the listener turns on "Song background" in Settings.
  */
 
-export type Credits = { label?: string; album?: string; released?: string; year?: string; writers: string[]; producers: string[] }
+export type Credits = { label?: string; album?: string; released?: string; year?: string; writers: string[]; producers: string[]; tracks: { t: number; label: string }[] }
 export type Background = {
   released?: string // YYYY, YYYY-MM or YYYY-MM-DD
   album?: string
@@ -32,7 +32,7 @@ const tidy = (s: string) =>
 
 export function parseCredits(desc: string): Credits {
   const lines = desc.split(/\r?\n/).map((l) => l.trim())
-  const out: Credits = { writers: [], producers: [] }
+  const out: Credits = { writers: [], producers: [], tracks: [] }
   const provided = lines.findIndex((l) => /^Provided to YouTube by /i.test(l))
   if (provided >= 0) {
     out.label = lines[provided].replace(/^Provided to YouTube by /i, '').trim()
@@ -53,6 +53,18 @@ export function parseCredits(desc: string): Credits {
     const by = l.match(/^(Written|Produced) by:?\s+(.{2,200})$/i)
     if (by) (by[1].toLowerCase() === 'written' ? out.writers : out.producers).push(...by[2].split(/\s*(?:,|&|\band\b)\s*/))
   }
+  // Mix tracklists: "00:00 Artist - Song", "1. Artist - Song (3:25)", "Artist - Song 1:02:10"
+  const stamp = String.raw`((?:\d{1,2}:)?\d{1,2}:\d{2})`
+  for (const l of lines) {
+    const m = l.match(new RegExp(String.raw`^[\[(]?${stamp}[\])]?\s*[-–—.:)]?\s*(.{2,120})$`)) ?? l.match(new RegExp(String.raw`^(?:\d{1,3}[.)]\s*)?(.{2,120}?)\s*[-–—]?\s*[\[(]?${stamp}[\])]?$`))
+    if (!m) continue
+    const [time, label] = /:\d{2}$/.test(m[1]) && !/[a-z]/i.test(m[1]) ? [m[1], m[2]] : [m[2], m[1]]
+    const secs = time.split(':').reduce((a, x) => a * 60 + Number(x), 0)
+    const clean = label.replace(/^\d{1,3}[.)]\s*/, '').trim()
+    if (/[\p{L}]/u.test(clean)) out.tracks.push({ t: secs, label: clean })
+  }
+  out.tracks.sort((a, b) => a.t - b.t)
+  if (out.tracks.length < 3) out.tracks = []
   out.writers = uniq(out.writers).slice(0, 8)
   out.producers = uniq(out.producers).slice(0, 8)
   return out

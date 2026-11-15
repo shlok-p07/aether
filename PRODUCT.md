@@ -33,13 +33,20 @@ Your home is built from your own listening. It is computed locally from what you
 - **No audio modification of any kind.** YouTube's terms forbid altering its audio, and the user explicitly asked to remove all sound-editing features. That means no EQ, no effects and no tempo changes. Volume is the only control.
 - The YouTube player must stay visible (at least 200×200) while it plays. Background-only playback is not allowed.
 - YouTube may show its own ads inside its player. Aether adds none and must not block YouTube's.
-- Personalization is local:
+- Personalization is local, from a listening log of seconds actually heard and early skips:
   - recently played
-  - most-played ("On repeat")
+  - most-played in the last 30 days ("On repeat"); repeated skips lower a song
+  - a time-of-day shelf (mornings, afternoons, evenings, late nights)
+  - "Forgotten favorites": heavily played, not heard in 30+ days
   - top artists from plays and likes
   - "More from <artist>" via channel uploads
   - trending for the listener's region
-  - autoplay of more songs from the same artist when the queue ends
+  - autoplay of more songs from the same artist when the queue ends, skipping songs the listener keeps skipping
+  - a Stats page (time, top songs, top artists, time of day) for 7 days, 30 days or all time
+- Lyrics are opt-in and come from LRCLIB; only then do song titles and artists leave the browser (to lrclib.net).
+- Data portability without a server: JSON backup export/import (merge, never delete), YouTube playlist import by link, and playlists shared as self-contained links.
+- Installable as a web app (manifest + a shell-only service worker that never caches YouTube, Google API or LRCLIB requests).
+- An optional shared server (worker/) can hold one key for a few friends; a personal key always takes over.
 
 ## Brand Commitments
 

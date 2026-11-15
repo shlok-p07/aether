@@ -1,12 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import {
   Home as HomeIcon, Library as LibraryIcon, ListMusic, Pause, Play, Repeat, Repeat1, Search, Settings as SettingsIcon, Shuffle, SkipBack,
-  SkipForward, Volume1, Volume2, VolumeX, LoaderCircle, Heart, ChevronUp, ChevronDown,
+  SkipForward, Volume1, Volume2, VolumeX, LoaderCircle, Heart, ChevronUp, ChevronDown, MicVocal,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { art } from '../data/youtube'
 import { fmtTime, useNav, usePlayer, type Page } from '../app/context'
 import { Art, LikeButton, TrackMenu } from './bits'
+import { LyricsView } from './lyrics'
 
 const NAV: { page: Page; label: string; icon: ReactNode }[] = [
   { page: { name: 'home' }, label: 'Home', icon: <HomeIcon size={20} strokeWidth={1.75} aria-hidden="true" /> },
@@ -16,7 +17,7 @@ const NAV: { page: Page; label: string; icon: ReactNode }[] = [
 ]
 
 const section = (p: Page) =>
-  p.name === 'liked' || p.name === 'history' || p.name === 'playlist' ? 'library' : p.name === 'artist' || p.name === 'queue' ? '' : p.name
+  ['liked', 'history', 'playlist', 'stats'].includes(p.name) ? 'library' : ['artist', 'queue', 'lyrics', 'shared'].includes(p.name) ? '' : p.name
 
 export function Sidebar() {
   const nav = useNav()
@@ -96,6 +97,9 @@ export function NowPlaying({ stage }: { stage: ReactNode }) {
     [plays],
   )
   const last = recent[0]
+  const lyricsOn = useStore((s) => s.lyrics)
+  const [tab, setTab] = useState<'next' | 'lyrics'>('next')
+  const showLyrics = lyricsOn && tab === 'lyrics'
   return (
     <aside className={`now${t ? '' : ' is-empty'}`} aria-label="Now playing">
       <div className="now-stage">
@@ -155,7 +159,22 @@ export function NowPlaying({ stage }: { stage: ReactNode }) {
           <TrackMenu track={t} />
         </div>
       )}
-      {t && (
+      {t && lyricsOn && (
+        <div className="seg" role="group" aria-label="Show in this panel">
+          <button aria-pressed={tab === 'next'} onClick={() => setTab('next')}>
+            Up next
+          </button>
+          <button aria-pressed={tab === 'lyrics'} onClick={() => setTab('lyrics')}>
+            Lyrics
+          </button>
+        </div>
+      )}
+      {t && showLyrics && (
+        <section className="now-next now-lyrics" aria-label="Lyrics">
+          <LyricsView where="rail" />
+        </section>
+      )}
+      {t && !showLyrics && (
         <section className="now-next" aria-labelledby="up-next">
           <div className="shelf-head">
             <h2 id="up-next">Up next</h2>
@@ -193,6 +212,7 @@ export function PlayerBar() {
   const t = p.current
   const dur = p.duration || t?.duration || 0
   const pct = dur ? Math.min(100, (p.time / dur) * 100) : 0
+  const lyricsOn = useStore((s) => s.lyrics)
   const VolIcon = p.muted || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2
   const [open, setOpen] = useState(false)
   return (
@@ -275,6 +295,17 @@ export function PlayerBar() {
           aria-label="Volume"
           style={{ ['--pct' as string]: `${p.muted ? 0 : volume}%` }}
         />
+        {lyricsOn && t && (
+          <button
+            className="icon-btn bar-lyrics"
+            onClick={() => (nav.page.name === 'lyrics' ? nav.back() : nav.go({ name: 'lyrics' }))}
+            aria-pressed={nav.page.name === 'lyrics'}
+            aria-label="Lyrics"
+            title="Lyrics"
+          >
+            <MicVocal size={20} strokeWidth={1.75} />
+          </button>
+        )}
       </div>
     </section>
   )

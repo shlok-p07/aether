@@ -203,7 +203,7 @@ export function LikeButton({ track }: { track: Track }) {
 
 type RowExtra = { remove?: { label: string; run: () => void }; up?: () => void; down?: () => void }
 
-export function TrackRow({ list, index, numbered, extra }: { list: Track[]; index: number; numbered?: boolean; extra?: RowExtra }) {
+export function TrackRow({ list, index, numbered, extra, side }: { list: Track[]; index: number; numbered?: boolean; extra?: RowExtra; side?: string }) {
   const player = usePlayer()
   const t = list[index]
   const current = player.current?.id === t.id
@@ -220,9 +220,13 @@ export function TrackRow({ list, index, numbered, extra }: { list: Track[]; inde
         </span>
         <span className="row-text">
           <span className="row-title">{t.title}</span>
-          <span className="row-meta">{current ? <span className="now-tag">Playing · </span> : null}{t.artist}</span>
+          <span className="row-meta">
+            {current ? <span className="now-tag">Playing · </span> : null}
+            {t.artist}
+            {side && <span className="meta-side"> · {side}</span>}
+          </span>
         </span>
-        <span className="row-time">{t.duration ? fmtTime(t.duration) : ''}</span>
+        <span className={`row-time${side ? ' row-side' : ''}`}>{side ?? (t.duration ? fmtTime(t.duration) : '')}</span>
       </button>
       {extra?.up && (
         <button className="icon-btn" onClick={extra.up} aria-label={`Move “${t.title}” up`} disabled={index === 0}>
@@ -257,11 +261,11 @@ export function TrackRow({ list, index, numbered, extra }: { list: Track[]; inde
   )
 }
 
-export function TrackRows({ list, numbered, extra }: { list: Track[]; numbered?: boolean; extra?: (i: number) => RowExtra }) {
+export function TrackRows({ list, numbered, extra, side }: { list: Track[]; numbered?: boolean; extra?: (i: number) => RowExtra; side?: (i: number) => string }) {
   return (
     <ul className="rows">
       {list.map((t, i) => (
-        <TrackRow key={`${t.id}-${i}`} list={list} index={i} numbered={numbered} extra={extra?.(i)} />
+        <TrackRow key={`${t.id}-${i}`} list={list} index={i} numbered={numbered} extra={extra?.(i)} side={side?.(i)} />
       ))}
     </ul>
   )

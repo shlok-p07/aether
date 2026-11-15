@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { ACCENTS, actions, store, useStore, type Track } from './store'
+import { ACCENTS, actions, skippedOften, store, useStore, type Track } from './store'
 import { artistSongs, art } from './data/youtube'
+import { readShareLink } from './data/share'
 import { NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
 import { YouTubeStage, type YTHandle, type YTState } from './components/YouTubeStage'
 import { NowPlaying, PlayerBar, Sidebar, TabBar } from './components/chrome'
-import { Artist, History, Home, Library, Liked, PlaylistPage, Queue, Search, Settings } from './pages'
+import { Artist, History, Home, Library, Liked, LyricsPage, PlaylistPage, Queue, Search, Settings, Shared, Stats } from './pages'
 
 const shuffled = <T,>(xs: T[]) => {
   const a = [...xs]
@@ -59,18 +60,53 @@ export default function App() {
   const counted = useRef<string | null>(null)
   const failures = useRef(0)
   const current = queue[pos] ?? null
-  const st = useRef({ queue, pos, repeat, time, current, shuffle })
-  st.current = { queue, pos, repeat, time, current, shuffle }
+  const st = useRef({ queue, pos, repeat, time, current, shuffle, duration })
+  st.current = { queue, pos, repeat, time, current, shuffle, duration }
+
+  // ---- listening log: seconds actually heard (seeking doesn't count), and whether the song was skipped ----
+  const listening = useRef<Track | null>(null)
+  const heard = useRef(0)
+  const lastT = useRef<number | null>(null)
+  const startListen = (t: Track) => {
+    listening.current = t
+    heard.current = 0
+    lastT.current = null
+  }
+  /** 'ended': played out. 'skip': you moved on. 'quiet': stopped for another reason (error, closing the tab), never a skip. */
+  const finishListen = useCallback((how: 'ended' | 'skip' | 'quiet') => {
+    const t = listening.current
+    if (!t) return
+    listening.current = null
+    const sec = Math.round(heard.current)
+    heard.current = 0
+    lastT.current = null
+    const need = Math.min(30, (st.current.duration || t.duration || 60) / 2)
+    const skipped = how === 'skip' && sec < need
+    if (sec >= 1 || skipped) actions.logListen(t, sec, skipped)
+  }, [])
+
+  useEffect(() => {
+    const bye = () => {
+      finishListen('quiet')
+      store.flush()
+    }
+    window.addEventListener('pagehide', bye)
+    return () => window.removeEventListener('pagehide', bye)
+  }, [finishListen])
 
   // A new song: load it into YouTube's player and remember it.
   useEffect(() => {
+    finishListen('skip') // no-op if the last song already ended or failed
     if (!current) return
     yt.current?.load(current.id, wantPlay.current)
     if (wantPlay.current) setLoading(true)
     setTime(0)
     setDuration(current.duration)
     counted.current = null
-    if (wantPlay.current) actions.logStart(current)
+    if (wantPlay.current) {
+      actions.logStart(current)
+      startListen(current)
+    }
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: current.title,
@@ -120,6 +156,7 @@ export default function App() {
       yt.current?.pause()
     } else {
       if (!wantPlay.current && s.time < 1) actions.logStart(s.current)
+      if (!listening.current) startListen(s.current)
       wantPlay.current = true
       yt.current?.play()
     }
@@ -131,8 +168,9 @@ export default function App() {
     if (!s.current || !key || !store.get().autoplay || !s.current.channelId) return false
     try {
       const more = await artistSongs(s.current.channelId, key)
-      const seen = new Set([...s.queue.map((t) => t.id), ...store.get().history.slice(0, 40).map((h) => h.t.id)])
-      const fresh = shuffled(more.filter((t) => !seen.has(t.id))).slice(0, 10)
+      const now = store.get()
+      const seen = new Set([...s.queue.map((t) => t.id), ...now.history.slice(0, 40).map((h) => h.t.id)])
+      const fresh = shuffled(more.filter((t) => !seen.has(t.id) && !skippedOften(now, t.id))).slice(0, 10)
       if (!fresh.length) return false
       setQueue((q) => [...q, ...fresh])
       setPos((p) => p + 1)
@@ -149,6 +187,8 @@ export default function App() {
       if (!s.queue.length) return
       wantPlay.current = true
       if (auto && s.repeat === 'one') {
+        if (s.current) startListen(s.current)
+        counted.current = null
         yt.current?.seek(0)
         yt.current?.play()
         return
@@ -259,17 +299,26 @@ export default function App() {
         failures.current = 0
       } else if (s === 'paused') setPlaying(false)
       else if (s === 'buffering') setLoading(true)
-      else if (s === 'ended') next(true)
+      else if (s === 'ended') {
+        finishListen('ended')
+        next(true)
+      }
     },
-    [next],
+    [next, finishListen],
   )
   const onTime = useCallback((t: number, d: number) => {
     setTime(t)
     if (d) setDuration(d)
+    if (listening.current) {
+      const dt = lastT.current === null ? 0 : t - lastT.current
+      if (dt > 0 && dt < 1.5) heard.current += dt
+      lastT.current = t
+    }
   }, [])
   const onError = useCallback(
     (code: number) => {
       const t = st.current.current
+      finishListen('quiet')
       setLoading(false)
       failures.current += 1
       const why = code === 101 || code === 150 ? 'its owner only allows it on YouTube itself' : "YouTube couldn't play it"
@@ -281,8 +330,18 @@ export default function App() {
         wantPlay.current = false
       }
     },
-    [next],
+    [next, finishListen],
   )
+
+  // A shared playlist link (#pl=…): open it, then tidy the address bar.
+  useEffect(() => {
+    if (!location.hash.startsWith('#pl=')) return
+    readShareLink(location.hash).then((p) => {
+      history.replaceState(null, '', location.pathname + location.search)
+      if (p) nav.go({ name: 'shared', title: p.name, tracks: p.tracks })
+      else setToast("This share link is damaged or incomplete. Ask for the link again.")
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock screen / media keys
   useEffect(() => {
@@ -339,6 +398,9 @@ export default function App() {
             {page.name === 'artist' && <Artist key={page.channelId} channelId={page.channelId} artist={page.artist} />}
             {page.name === 'queue' && <Queue />}
             {page.name === 'settings' && <Settings />}
+            {page.name === 'stats' && <Stats />}
+            {page.name === 'lyrics' && <LyricsPage />}
+            {page.name === 'shared' && <Shared title={page.title} tracks={page.tracks} />}
           </main>
             {toast && (
               <div className="toast" role="status">

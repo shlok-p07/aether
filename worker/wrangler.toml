@@ -1,0 +1,7 @@
+name = "aether-youtube"
+main = "youtube-proxy.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# Where your Aether is hosted, comma-separated. Keep localhost for testing.
+ALLOWED_ORIGINS = "http://localhost:5180"

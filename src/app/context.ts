@@ -39,6 +39,9 @@ export type Page =
   | { name: 'artist'; channelId: string; artist: string }
   | { name: 'queue' }
   | { name: 'settings' }
+  | { name: 'stats' }
+  | { name: 'lyrics' }
+  | { name: 'shared'; title: string; tracks: Track[] }
 
 export type NavApi = {
   page: Page
@@ -94,3 +97,22 @@ export const fmtTime = (s: number) => {
 }
 
 export const songs = (n: number) => (n === 1 ? '1 song' : `${n} songs`)
+
+/** 3725 → "1 hr 2 min", 400 → "7 min", 20 → "20 sec" */
+export const fmtLong = (sec: number) => {
+  const s = Math.round(sec)
+  if (s < 60) return `${s} sec`
+  const h = Math.floor(s / 3600)
+  const m = Math.round((s % 3600) / 60)
+  return h ? (m ? `${h} hr ${m} min` : `${h} hr`) : `${m} min`
+}
+
+/** "3 days ago", "2 months ago" */
+export const ago = (at: number, now = Date.now()) => {
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'always' })
+  const days = Math.round((at - now) / 86400e3)
+  if (days > -14) return rtf.format(days, 'day')
+  if (days > -60) return rtf.format(Math.round(days / 7), 'week')
+  if (days > -365) return rtf.format(Math.round(days / 30), 'month')
+  return rtf.format(Math.round(days / 365), 'year')
+}

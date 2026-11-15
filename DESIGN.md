@@ -174,7 +174,7 @@ A neutral dark ladder with one listener-owned accent; colour comes from the albu
 - **Hairline** (rgba(255, 255, 255, 0.1)): every container border and pane divider.
 - **Paper White** (#f5f5f7): primary text, the white play disc, the pressed state of a quiet pill.
 - **Secondary Grey** (#a1a1a6): subtitles, artist names, meta, counts, times, idle icons. At least 5.4:1 on every surface.
-- **Tertiary Grey** (#8e8e93): input placeholders only.
+- **Tertiary Grey** (#8e8e93): input placeholders and lyric lines that aren't being sung (6:1 on black, 4.9:1 on graphite).
 - **System Red** (#ff453a): destructive actions and errors only, with black text on fills.
 
 Hover washes are translucent white over the current surface (5% on rows, 6% on nav and mini rows, 8% on icon buttons and menu items), never a new colour.
@@ -200,6 +200,7 @@ Hover washes are translucent white over the current surface (5% on rows, 6% on n
 - **Title** (700, 17px): shelf headings ("Your rotation", "Jump back in", "Up next") and the setup card heading. Settings group headings, library tile titles and the now-playing song title use 17px at 600.
 - **Body** (400, 17px, 1.45): base text and the search input. Explanatory paragraphs cap at 62ch.
 - **List** (600 or 500, 15px): card, row and player-bar titles at 600; nav items, chips, menu items, pills and page subtitles at 500 or 400. This is the recorded density deviation from the 48/32/17/13 scale.
+- **Statement** (500 to 700, 24px, 1.35, -0.01em): the one summary sentence on Stats and full-page lyric lines; 20px on phone for the Stats sentence. A recorded step between Title and Headline, used nowhere else.
 - **Label** (400 or 600, 13px, tabular numerals): artist and meta lines, play counts, times, counts, tab labels, sidebar group heading, "See all".
 
 The wordmark is 24px/700 at -0.02em and appears only in the sidebar.
@@ -299,12 +300,24 @@ A single status message in the main column, centred 16px above its foot: raised 
 ### Your Rotation (Signature Component)
 The home screen's signature: a mosaic of the listener's six most-played songs, at most 760px wide, on a four-column grid of square cells with 12px gaps (8px on phone) and dense packing. Tile size comes from play share. The top song takes a 2x2 square when it leads the next by 40% or more, otherwise a wide tile. Any other song with at least 60% of the leader's plays gets a 2x1 wide tile, and the rest get single squares. Each tile is an 18px-radius, hairline-bordered button with Soft Lift, the cover filling it, and a bottom caption on a black-to-clear scrim: title (13px/600; 17px on wide tiles; 32px/700 on the large square) and a tabular "N plays" line in light grey. Hover lifts the tile 2px over 300ms. On phone captions shrink (the large square to 17px, wide to 13px) and single squares drop the play count. It appears once the listener has three repeated songs; before that, a "Start your rotation" shelf of Explore chips takes its place.
 
+### Segmented Control
+A pill group on a 6% white wash holding 44px pill buttons (15px/600, secondary grey). The pressed option fills raised graphite with paper-white text. Used for the Stats period (7 days, 30 days, All time) and, when lyrics are on, the rail's Up next / Lyrics switch (two equal halves; hidden on phone).
+
+### Library Action Rows
+"New playlist" and "Import from YouTube" sit at the top of the Playlists list as ordinary track-row-sized rows, with the accent glyph on an empty 48px tile, instead of header buttons. Choosing one swaps the rows for its inline form (label, pill field, accent submit, quiet Cancel, 13px hint or System Red error).
+
+### Stats
+A page title, a 15px explanation, the period control, then the Statement sentence in secondary grey with the listening time in paper white (never broken across lines). Top songs reuse track rows with "N plays" in the duration slot (moved into the meta line on phone); top artists are rows with a round thumbnail and "N plays · time". "When you listen" is four 15px rows with a 4px track whose accent fill is that slot's share of the busiest one; the time is always written out, so the bar is never the only signal.
+
+### Lyrics
+Lines are full-width 44px buttons (17px/600 in the rail, 24px/700 on the Lyrics page): the sung line is paper white, others tertiary grey, and tapping a line seeks there. The list scrolls inside its own region with a 24px masked fade at both edges and follows the song, keeping the current line a third of the way down; a wheel, touch or arrow-key scroll pauses following and shows a quiet "Follow along" pill. A 13px foot credits LRCLIB and says when timing is off because the video's length differs from the recording.
+
 ## Do's and Don'ts
 
 ### Do:
 - **Do** use `var(--accent)` for every accent use, and check the surface in all six accents.
 - **Do** put black text on accent and System Red fills.
-- **Do** keep the 48/32/17/15/13 size set and weights 700 for page and shelf headings, 600 for list titles and labels that need weight.
+- **Do** keep the 48/32/17/15/13 size set (plus the single 24px Statement step) and weights 700 for page and shelf headings, 600 for list titles and labels that need weight.
 - **Do** give containers an 18px radius and a 1px hairline (rgba(255, 255, 255, 0.1)); give controls a full pill.
 - **Do** use the Apple curve (cubic-bezier(0.25, 0.1, 0.25, 1)) for all transitions, at 150 to 300ms, and collapse motion under reduced-motion.
 - **Do** keep every target at least 44px and every count in tabular figures.
@@ -313,7 +326,7 @@ The home screen's signature: a mosaic of the listener's six most-played songs, a
 
 ### Don't:
 - **Don't** hard-code an accent hex or put white text on an accent fill.
-- **Don't** add gradients, tints or coloured panels to the chrome; the caption scrim over art is the only gradient.
+- **Don't** add gradients, tints or coloured panels to the chrome; the caption scrim over art and the lyrics edge mask are the only gradients.
 - **Don't** add a second typeface or web font; the system stack is the user-pinned choice.
 - **Don't** fill Home with trending or editorial content ahead of the listener's own shelves.
 - **Don't** auto-dismiss toasts or add any timed UI.

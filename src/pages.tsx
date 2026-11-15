@@ -1,8 +1,13 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { ChevronLeft, Clock, Heart, ListMusic, Plus, Search as SearchIcon, X } from 'lucide-react'
-import { artistSongs, cleanArtist, regionName, search, trending } from './data/youtube'
-import { ACCENTS, actions, onRepeat, recentlyPlayed, store, topArtists, useStore, type Accent, type Track } from './store'
-import { fmtTime, songs, useAsync, useNav, usePlayer } from './app/context'
+import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { ChartColumn, ChevronLeft, Clock, Download, Heart, Link2, ListMusic, Plus, Search as SearchIcon, Share, Upload, X } from 'lucide-react'
+import { artistSongs, cleanArtist, importPlaylist, playlistId, regionName, search, trending, usesProxy } from './data/youtube'
+import { isLocalOrigin, shareLink } from './data/share'
+import {
+  ACCENTS, actions, exportBackup, forgotten, importBackup, onRepeat, recentlyPlayed, searchLibrary, stats, store, timeMix, topArtists, useStore,
+  type Accent, type Period, type Track,
+} from './store'
+import { ago, fmtLong, fmtTime, songs, useAsync, useNav, usePlayer } from './app/context'
+import { LyricsView } from './components/lyrics'
 import { Art, Cards, Loadable, PlayAll, Shelf, ShuffleAll, TrackRows } from './components/bits'
 import { YouTubeSetup } from './components/YouTubeSetup'
 
@@ -105,6 +110,8 @@ export function Home() {
   const top = useMemo(() => onRepeat(s), [s.plays]) // eslint-disable-line react-hooks/exhaustive-deps
   const recent = useMemo(() => recentlyPlayed(s), [s.history]) // eslint-disable-line react-hooks/exhaustive-deps
   const artists = useMemo(() => topArtists(s, 3), [s.plays, s.liked, s.history]) // eslint-disable-line react-hooks/exhaustive-deps
+  const mix = useMemo(() => timeMix(s), [s.events, s.plays]) // eslint-disable-line react-hooks/exhaustive-deps
+  const old = useMemo(() => forgotten(s), [s.plays]) // eslint-disable-line react-hooks/exhaustive-deps
   const hot = useAsync(key ? (sig) => trending(key, sig) : null, [key])
   const [allHot, setAllHot] = useState(false)
 
@@ -143,9 +150,21 @@ export function Home() {
         </Shelf>
       )}
 
+      {mix.list.length > 0 && (
+        <Shelf title={`Your ${mix.slot.label.toLowerCase()}`} action={<PlayAll list={mix.list} label="Play" />}>
+          <Cards list={mix.list} />
+        </Shelf>
+      )}
+
       {top.length >= 3 && (
         <Shelf title="On repeat">
           <Cards list={top.map((p) => p.t)} sub={(_, i) => `${top[i].n} plays`} />
+        </Shelf>
+      )}
+
+      {old.length >= 3 && (
+        <Shelf title="Forgotten favorites" action={<PlayAll list={old.map((p) => p.t)} label="Play" />}>
+          <Cards list={old.map((p) => p.t)} sub={(_, i) => `Last played ${ago(old[i].last)}`} />
         </Shelf>
       )}
 
@@ -187,8 +206,10 @@ export function Search({ initial }: { initial?: string }) {
   const nav = useNav()
   const [text, setText] = useState(initial ?? '')
   const [q, setQ] = useState(initial ?? '')
-  // Searching costs quota, so it runs when you press Enter, not on every keystroke.
+  // Searching YouTube costs quota, so it runs when you press Enter. Your own library is searched as you type, for free.
   const r = useAsync(key && q ? (s) => search(q, key, s) : null, [q, key])
+  const st = useStore((s) => s)
+  const local = useMemo(() => (text.trim().length >= 2 ? searchLibrary(st, text) : null), [text, st.liked, st.plays, st.playlists, st.history]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -240,6 +261,21 @@ export function Search({ initial }: { initial?: string }) {
           Search
         </button>
       </form>
+
+      {local && (local.tracks.length > 0 || local.playlists.length > 0) && (
+        <Shelf title="In your library">
+          {local.playlists.length > 0 && (
+            <div className="chips">
+              {local.playlists.map((p) => (
+                <button key={p.id} className="chip" onClick={() => nav.go({ name: 'playlist', id: p.id })}>
+                  <ListMusic size={14} strokeWidth={2} aria-hidden="true" /> {p.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {local.tracks.length > 0 && <TrackRows list={local.tracks.slice(0, q ? 4 : 8)} />}
+        </Shelf>
+      )}
 
       {!key && <YouTubeSetup />}
 
@@ -341,12 +377,83 @@ export function Artist({ channelId, artist }: { channelId: string; artist: strin
 
 // ---------------- Library ----------------
 
+function ImportPlaylist({ onDone }: { onDone: () => void }) {
+  const key = useKey()
+  const nav = useNav()
+  const [url, setUrl] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setErr(null)
+    if (!key) return setErr('Connect YouTube in Settings first. Importing reads the playlist through YouTube.')
+    const id = playlistId(url)
+    if (!id) return setErr('That doesn’t look like a playlist link. It should contain “list=”, like youtube.com/playlist?list=PL…')
+    setBusy(true)
+    try {
+      const r = await importPlaylist(id, key)
+      if (!r.tracks.length) return setErr(`“${r.title}” has no songs that can play here.`)
+      const pid = actions.createPlaylist(r.title, r.tracks)
+      nav.notify(
+        `Imported ${songs(r.tracks.length)} from “${r.title}”.` +
+          (r.skipped ? ` ${r.skipped === 1 ? '1 video' : `${r.skipped} videos`} couldn't be added: private, deleted, or only playable on YouTube.` : ''),
+      )
+      onDone()
+      nav.go({ name: 'playlist', id: pid })
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="import-form" onSubmit={submit}>
+      <label htmlFor="yt-import" className="field-label">
+        YouTube or YouTube Music playlist link
+      </label>
+      <div className="new-form">
+        <input
+          id="yt-import"
+          autoFocus
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="youtube.com/playlist?list=…"
+          inputMode="url"
+          autoComplete="off"
+          aria-describedby="yt-import-hint"
+          aria-invalid={!!err}
+        />
+        <button className="pill pill-accent" type="submit" disabled={busy || !url.trim()}>
+          {busy ? 'Importing…' : 'Import'}
+        </button>
+        <button className="pill pill-quiet" type="button" onClick={onDone}>
+          Cancel
+        </button>
+      </div>
+      {err ? (
+        <p className="form-error" role="alert">
+          {err}
+        </p>
+      ) : (
+        <p className="field-hint" id="yt-import-hint">
+          Public and Unlisted playlists work, up to 500 songs. It becomes an Aether playlist you can edit.
+        </p>
+      )}
+    </form>
+  )
+}
+
 export function Library() {
   const nav = useNav()
   const liked = useStore((s) => s.liked)
   const history = useStore((s) => s.history)
   const playlists = useStore((s) => s.playlists)
+  const events = useStore((s) => s.events)
+  const week = useMemo(() => stats(store.get(), 7).sec, [events])
   const [creating, setCreating] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [name, setName] = useState('')
 
   const create = (e: FormEvent) => {
@@ -373,18 +480,15 @@ export function Library() {
           <span className="tile-title">Recently played</span>
           <span className="tile-sub">{songs(history.length)}</span>
         </button>
+        <button className="tile" onClick={() => nav.go({ name: 'stats' })}>
+          <ChartColumn size={28} strokeWidth={1.75} aria-hidden="true" />
+          <span className="tile-title">Your stats</span>
+          <span className="tile-sub">{events.length ? `${fmtLong(week)} this week` : 'Starts counting with your next song'}</span>
+        </button>
       </div>
 
-      <Shelf
-        title="Playlists"
-        action={
-          !creating && (
-            <button className="pill pill-quiet" onClick={() => setCreating(true)}>
-              <Plus size={16} strokeWidth={2} aria-hidden="true" /> New playlist
-            </button>
-          )
-        }
-      >
+      <Shelf title="Playlists">
+        {importing && <ImportPlaylist onDone={() => setImporting(false)} />}
         {creating && (
           <form className="new-form" onSubmit={create}>
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Playlist name" aria-label="Playlist name" maxLength={60} />
@@ -396,33 +500,56 @@ export function Library() {
             </button>
           </form>
         )}
-        {playlists.length === 0 && !creating ? (
-          <div className="notice">
-            <p>No playlists yet. Make one here, or pick “More” on any song and add it to a new playlist.</p>
-          </div>
-        ) : (
-          <ul className="rows">
-            {playlists.map((p) => (
-              <li key={p.id} className="row">
-                <button className="row-main" onClick={() => nav.go({ name: 'playlist', id: p.id })}>
+        <ul className="rows">
+          {!creating && !importing && (
+            <>
+              <li className="row">
+                <button className="row-main" onClick={() => setCreating(true)}>
                   <span className="row-art-wrap">
-                    {p.tracks[0] ? (
-                      <Art id={p.tracks[0].id} className="row-art" />
-                    ) : (
-                      <span className="art row-art art-empty" aria-hidden="true">
-                        <ListMusic size={20} strokeWidth={1.75} />
-                      </span>
-                    )}
+                    <span className="art row-art art-empty art-action" aria-hidden="true">
+                      <Plus size={22} strokeWidth={2} />
+                    </span>
                   </span>
                   <span className="row-text">
-                    <span className="row-title">{p.name}</span>
-                    <span className="row-meta">{songs(p.tracks.length)}</span>
+                    <span className="row-title">New playlist</span>
                   </span>
                 </button>
               </li>
-            ))}
-          </ul>
-        )}
+              <li className="row">
+                <button className="row-main" onClick={() => setImporting(true)}>
+                  <span className="row-art-wrap">
+                    <span className="art row-art art-empty art-action" aria-hidden="true">
+                      <Link2 size={20} strokeWidth={2} />
+                    </span>
+                  </span>
+                  <span className="row-text">
+                    <span className="row-title">Import from YouTube</span>
+                    <span className="row-meta">Paste a playlist link</span>
+                  </span>
+                </button>
+              </li>
+            </>
+          )}
+          {playlists.map((p) => (
+            <li key={p.id} className="row">
+              <button className="row-main" onClick={() => nav.go({ name: 'playlist', id: p.id })}>
+                <span className="row-art-wrap">
+                  {p.tracks[0] ? (
+                    <Art id={p.tracks[0].id} className="row-art" />
+                  ) : (
+                    <span className="art row-art art-empty" aria-hidden="true">
+                      <ListMusic size={20} strokeWidth={1.75} />
+                    </span>
+                  )}
+                </span>
+                <span className="row-text">
+                  <span className="row-title">{p.name}</span>
+                  <span className="row-meta">{songs(p.tracks.length)}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </Shelf>
     </div>
   )
@@ -481,12 +608,12 @@ export function History() {
       </header>
       {confirm && (
         <div className="confirm" role="alert">
-          <p>Clear your listening history? Your rotation and recommendations start over. Likes and playlists stay.</p>
+          <p>Clear your listening history? Your rotation, mixes and stats start over. Likes and playlists stay.</p>
           <div className="head-actions">
             <button
               className="pill pill-danger"
               onClick={() => {
-                store.set((s) => ({ ...s, history: [], plays: {} }))
+                actions.clearListening()
                 setConfirm(false)
               }}
             >
@@ -516,6 +643,7 @@ export function PlaylistPage({ id }: { id: string }) {
   const [name, setName] = useState(p?.name ?? '')
   const [confirm, setConfirm] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [fallback, setFallback] = useState<string | null>(null)
 
   if (!p) {
     return (
@@ -528,6 +656,21 @@ export function PlaylistPage({ id }: { id: string }) {
         </div>
       </div>
     )
+  }
+  const share = async () => {
+    const { url, truncated } = await shareLink(p.name, p.tracks)
+    const notes = (truncated ? ' It includes the first 300 songs.' : '') + (isLocalOrigin() ? ' Until Aether is online, it only opens on devices that can reach this computer.' : '')
+    try {
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) {
+        await navigator.share({ title: p.name, url })
+        return
+      }
+      await navigator.clipboard.writeText(url)
+      setFallback(null)
+      nav.notify(`Link copied. Anyone with it can play and save “${p.name}”.${notes}`)
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') setFallback(url)
+    }
   }
   const move = (from: number, to: number) =>
     actions.editPlaylist(p.id, (pl) => {
@@ -547,6 +690,9 @@ export function PlaylistPage({ id }: { id: string }) {
         <div className="head-actions">
           <PlayAll list={p.tracks} />
           <ShuffleAll list={p.tracks} />
+          <button className="pill pill-quiet" onClick={share} disabled={!p.tracks.length}>
+            <Share size={16} strokeWidth={2} aria-hidden="true" /> Share
+          </button>
           <button className="pill pill-quiet" onClick={() => setRenaming(!renaming)} aria-expanded={renaming}>
             Rename
           </button>
@@ -560,6 +706,14 @@ export function PlaylistPage({ id }: { id: string }) {
           </button>
         </div>
       </header>
+      {fallback && (
+        <div className="import-form">
+          <label htmlFor="share-url" className="field-label">
+            Copy this link to share “{p.name}”
+          </label>
+          <input id="share-url" className="share-url" readOnly value={fallback} onFocus={(e) => e.currentTarget.select()} autoFocus />
+        </div>
+      )}
       {renaming && (
         <form
           className="new-form"
@@ -678,6 +832,65 @@ export function Queue() {
 
 // ---------------- Settings ----------------
 
+function listOf(parts: string[]) {
+  return parts.length < 2 ? parts.join('') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+}
+
+function DataBackup() {
+  const file = useRef<HTMLInputElement>(null)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const download = () => {
+    const blob = new Blob([exportBackup()], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `aether-backup-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+    setMsg({ ok: true, text: 'Backup saved to your downloads.' })
+  }
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    try {
+      const n = importBackup(await f.text())
+      const parts = [
+        n.liked ? `${n.liked} liked ${n.liked === 1 ? 'song' : 'songs'}` : '',
+        n.playlists ? `${n.playlists} ${n.playlists === 1 ? 'playlist' : 'playlists'}` : '',
+        n.plays ? `${n.plays} ${n.plays === 1 ? 'play' : 'plays'}` : '',
+      ].filter(Boolean)
+      setMsg({ ok: true, text: parts.length ? `Added ${listOf(parts)}.` : 'Everything in that backup is already here.' })
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message })
+    }
+  }
+
+  return (
+    <section className="settings-group" aria-labelledby="set-data">
+      <h2 id="set-data">Your data</h2>
+      <p className="page-sub prose">
+        Likes, playlists, history and stats live only in this browser. Save a backup now and then, or use one to move to another device. Importing adds to
+        what's here and never deletes anything. Your YouTube key isn't included.
+      </p>
+      <div className="head-actions">
+        <button className="pill pill-quiet" onClick={download}>
+          <Download size={16} strokeWidth={2} aria-hidden="true" /> Export backup
+        </button>
+        <button className="pill pill-quiet" onClick={() => file.current?.click()}>
+          <Upload size={16} strokeWidth={2} aria-hidden="true" /> Import backup
+        </button>
+        <input ref={file} type="file" accept="application/json,.json" hidden onChange={onFile} />
+      </div>
+      {msg && (
+        <p className={msg.ok ? 'field-hint' : 'form-error'} role={msg.ok ? 'status' : 'alert'}>
+          {msg.text}
+        </p>
+      )}
+    </section>
+  )
+}
+
 export function Settings() {
   const s = useStore((x) => x)
   const [confirmKey, setConfirmKey] = useState(false)
@@ -708,11 +921,26 @@ export function Settings() {
           </span>
           <input type="checkbox" role="switch" checked={s.autoplay} onChange={(e) => actions.set('autoplay', e.target.checked)} />
         </label>
+        <label className="switch-row">
+          <span>
+            <span className="switch-title">Lyrics</span>
+            <span className="switch-sub">Synced lyrics from LRCLIB, a free lyrics database. When on, each song's title and artist are sent to lrclib.net.</span>
+          </span>
+          <input type="checkbox" role="switch" checked={s.lyrics} onChange={(e) => actions.set('lyrics', e.target.checked)} />
+        </label>
       </section>
 
       <section className="settings-group" aria-labelledby="set-yt">
         <h2 id="set-yt">YouTube</h2>
-        {s.key ? (
+        {usesProxy(s.key) ? (
+          <>
+            <p className="page-sub prose">
+              Connected through the shared Aether server, so you don't need a key of your own. Everyone using it shares one daily search limit. Add your own free
+              key to get your own.
+            </p>
+            <YouTubeSetup compact />
+          </>
+        ) : s.key ? (
           <>
             <p className="page-sub">Connected with your API key (stored only in this browser).</p>
             {confirmKey ? (
@@ -741,13 +969,170 @@ export function Settings() {
         )}
       </section>
 
+      <DataBackup />
+
       <section className="settings-group" aria-labelledby="set-about">
         <h2 id="set-about">About</h2>
         <p className="page-sub prose">
           Aether is free and adds no ads. Songs play in YouTube's own player, which may show YouTube's ads, and their sound is never changed. Your likes,
-          playlists and history stay in this browser; nothing is sent anywhere except searches to YouTube.
+          playlists and history stay in this browser. Nothing is sent anywhere except requests to YouTube, plus song titles to LRCLIB if you turn lyrics on.
         </p>
       </section>
+    </div>
+  )
+}
+
+// ---------------- Stats ----------------
+
+const PERIODS: { v: Period; label: string }[] = [
+  { v: 7, label: '7 days' },
+  { v: 30, label: '30 days' },
+  { v: 'all', label: 'All time' },
+]
+
+export function Stats() {
+  const s = useStore((x) => x)
+  const nav = useNav()
+  const [period, setPeriod] = useState<Period>(30)
+  const st = useMemo(() => stats(s, period), [s.events, s.plays, period]) // eslint-disable-line react-hooks/exhaustive-deps
+  const top = st.slots[0]
+  const when = top && top.sec > 0 ? (top.key === 'night' ? ', mostly late at night' : `, mostly in the ${top.label.toLowerCase()}`) : ''
+  const skipPct = st.listens ? Math.round((st.skips / st.listens) * 100) : 0
+  const span = period === 'all' ? 'Since Aether started counting' : `In the last ${period} days`
+  const slotMax = Math.max(1, ...st.slots.map((x) => x.sec))
+
+  return (
+    <div className="page">
+      <BackLink />
+      <header className="page-head">
+        <h1>Your listening</h1>
+        <p className="page-sub">Counted in this browser from what you actually hear. Paused and skipped-over time doesn't count.</p>
+        <div className="seg" role="group" aria-label="Time period">
+          {PERIODS.map((x) => (
+            <button key={x.label} aria-pressed={period === x.v} onClick={() => setPeriod(x.v)}>
+              {x.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {!st.listens ? (
+        <div className="notice">
+          <p>{s.events.length ? `Nothing played in the last ${period} days.` : 'Stats start with your next song. Play something and come back.'}</p>
+        </div>
+      ) : (
+        <>
+          <p className="stats-lede">
+            {span}, you listened for <strong>{fmtLong(st.sec)}</strong> across {songs(st.distinct)} on {st.days === 1 ? '1 day' : `${st.days} days`}
+            {when}.{st.artists[0] ? ` Your top artist was ${st.artists[0].name}.` : ''}
+            {skipPct >= 5 ? ` You skipped ${skipPct}% of songs early.` : ''}
+          </p>
+
+          {st.songs.length > 0 && (
+            <Shelf title="Top songs" action={<PlayAll list={st.songs.map((x) => x.t)} label="Play" />}>
+              <TrackRows list={st.songs.map((x) => x.t)} numbered side={(i) => (st.songs[i].plays === 1 ? '1 play' : `${st.songs[i].plays} plays`)} />
+            </Shelf>
+          )}
+
+          {st.artists.length > 0 && (
+            <Shelf title="Top artists">
+              <ol className="rows">
+                {st.artists.map((a, i) => (
+                  <li key={a.channelId || a.name} className="row">
+                    <button
+                      className="row-main"
+                      disabled={!a.channelId}
+                      onClick={() => nav.go({ name: 'artist', channelId: a.channelId, artist: a.name })}
+                      aria-label={`${a.name}: ${fmtLong(a.sec)} listened. Open artist`}
+                    >
+                      <span className="row-num">{i + 1}</span>
+                      <span className="row-art-wrap">
+                        <Art id={a.sample.id} className="row-art row-art-round" />
+                      </span>
+                      <span className="row-text">
+                        <span className="row-title">{a.name}</span>
+                        <span className="row-meta">
+                          {a.plays === 1 ? '1 play' : `${a.plays} plays`} · {fmtLong(a.sec)}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </Shelf>
+          )}
+
+          <Shelf title="When you listen">
+            <ul className="slot-list">
+              {st.slots.map((x) => (
+                <li key={x.key} style={{ ['--share' as string]: `${(x.sec / slotMax) * 100}%` }}>
+                  <span className="slot-name">{x.label}</span>
+                  <span className="slot-time">{x.sec ? fmtLong(x.sec) : 'None'}</span>
+                  <span className="slot-bar" aria-hidden="true" />
+                </li>
+              ))}
+            </ul>
+          </Shelf>
+
+          {st.since && <p className="field-hint">Counting since {new Date(st.since).toLocaleDateString(undefined, { dateStyle: 'long' })}.</p>}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ---------------- Shared playlist (from a link) ----------------
+
+export function Shared({ title, tracks }: { title: string; tracks: Track[] }) {
+  const nav = useNav()
+  const [saved, setSaved] = useState<string | null>(null)
+  return (
+    <div className="page">
+      <BackLink />
+      <header className="page-head">
+        <h1>{title}</h1>
+        <p className="page-sub">Shared with you · {songs(tracks.length) + total(tracks)}</p>
+        <div className="head-actions">
+          <PlayAll list={tracks} />
+          <ShuffleAll list={tracks} />
+          {saved ? (
+            <button className="pill pill-quiet" onClick={() => nav.go({ name: 'playlist', id: saved })}>
+              <ListMusic size={16} strokeWidth={2} aria-hidden="true" /> Open in Library
+            </button>
+          ) : (
+            <button
+              className="pill pill-quiet"
+              onClick={() => {
+                setSaved(actions.createPlaylist(title, tracks))
+                nav.notify(`Saved “${title}” to your Library.`)
+              }}
+            >
+              <Plus size={16} strokeWidth={2} aria-hidden="true" /> Save to Library
+            </button>
+          )}
+        </div>
+      </header>
+      <TrackRows list={tracks} numbered />
+    </div>
+  )
+}
+
+// ---------------- Lyrics ----------------
+
+export function LyricsPage() {
+  const t = usePlayer().current
+  return (
+    <div className="page page-lyrics">
+      <BackLink />
+      <header className="page-head">
+        <h1>Lyrics</h1>
+        {t && (
+          <p className="page-sub">
+            {t.title} · {t.artist}
+          </p>
+        )}
+      </header>
+      <LyricsView where="page" />
     </div>
   )
 }

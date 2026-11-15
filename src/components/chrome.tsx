@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import {
   Home as HomeIcon, Library as LibraryIcon, ListMusic, Pause, Play, Repeat, Repeat1, Search, Settings as SettingsIcon, Shuffle, SkipBack,
-  SkipForward, Volume1, Volume2, VolumeX, LoaderCircle, Heart, ChevronUp, ChevronDown, MicVocal,
+  SkipForward, Volume1, Volume2, VolumeX, LoaderCircle, Heart, ChevronUp, ChevronDown, MicVocal, Music,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { art } from '../data/youtube'
@@ -27,7 +27,14 @@ export function Sidebar() {
   const active = section(nav.page)
   return (
     <nav className="sidebar" aria-label="Main">
-      <span className="wordmark">Aether</span>
+      <span className="wordmark">
+        <svg className="wordmark-mark" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="28" fill="currentColor" />
+          <circle cx="32" cy="32" r="18" fill="none" stroke="#000" strokeOpacity=".22" strokeWidth="2" />
+          <circle cx="32" cy="32" r="7" fill="#000" />
+        </svg>
+        Aether
+      </span>
       <ul className="side-list">
         {NAV.map((n) => (
           <li key={n.label}>
@@ -116,7 +123,7 @@ export function NowPlaying({ stage }: { stage: ReactNode }) {
             <p className="now-title">{last.title}</p>
             <p className="now-artist">{last.artist} · last played</p>
           </div>
-          <button className="pill pill-accent" onClick={() => player.playList(recent, 0)}>
+          <button className="pill pill-quiet" onClick={() => player.playList(recent, 0)}>
             <Play size={16} strokeWidth={0} fill="currentColor" aria-hidden="true" /> Resume
           </button>
         </div>
@@ -227,7 +234,13 @@ export function PlayerBar() {
     <section className={`bar${open ? ' is-open' : ''}`} aria-label="Player" style={{ ['--pct' as string]: `${pct}%` }}>
       <span className="bar-progress" aria-hidden="true" />
       <div className="bar-song">
-        {t ? <Art id={t.id} className="bar-art" /> : <span className="art bar-art art-empty" />}
+        {t ? (
+          <Art id={t.id} className="bar-art" />
+        ) : (
+          <span className="art bar-art art-empty" aria-hidden="true">
+            <Music size={22} strokeWidth={1.75} />
+          </span>
+        )}
         {t ? (
           <button
             className="bar-text bar-open"

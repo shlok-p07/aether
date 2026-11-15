@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { ACCENTS, actions, skippedOften, store, useStore, type Track } from './store'
 import { artistSongs, art } from './data/youtube'
 import { readShareLink } from './data/share'
+import { ambientColor } from './data/ambient'
 import { NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
 import { YouTubeStage, type YTHandle, type YTState } from './components/YouTubeStage'
 import { NowPlaying, PlayerBar, Sidebar, TabBar } from './components/chrome'
@@ -378,6 +379,30 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [toggle, next, prev, setShuffle, cycleRepeat, nav])
 
+  // Ambient colour: the playing (or last played) song's artwork tints the shell.
+  const lastId = useStore((s) => s.history[0]?.t.id ?? null)
+  const ambientId = current?.id ?? lastId
+  const [ambient, setAmbient] = useState<string | null>(null)
+  useEffect(() => {
+    if (!ambientId) return setAmbient(null)
+    let live = true
+    ambientColor(ambientId).then((c) => live && setAmbient(c))
+    return () => {
+      live = false
+    }
+  }, [ambientId])
+
+  // The player floats over the content; content leaves room for it, whatever its height.
+  const bottom = useRef<HTMLDivElement>(null)
+  const shell = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = bottom.current
+    if (!el) return
+    const ro = new ResizeObserver(() => shell.current?.style.setProperty('--bar-space', `${Math.ceil(el.getBoundingClientRect().height)}px`))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const stage = (
     <YouTubeStage ref={yt} visible={!!current} title={current?.title ?? ''} volume={volume} muted={muted} onState={onState} onTime={onTime} onError={onError} />
   )
@@ -385,7 +410,11 @@ export default function App() {
   return (
     <NavContext.Provider value={nav}>
       <PlayerContext.Provider value={player}>
-        <div className={`app${current ? ' has-song' : ''}`} style={{ ['--accent' as string]: ACCENTS[accent].color }}>
+        <div
+          ref={shell}
+          className={`app${current ? ' has-song' : ''}`}
+          style={{ ['--accent' as string]: ACCENTS[accent].color, ...(ambient ? { ['--ambient' as string]: ambient } : {}) }}
+        >
           <Sidebar />
           <div className={`main-area${toast ? ' has-toast' : ''}`}>
           <main className="main" ref={main}>
@@ -412,7 +441,7 @@ export default function App() {
             )}
           </div>
           <NowPlaying stage={stage} />
-          <div className="bottom">
+          <div className="bottom" ref={bottom}>
             <PlayerBar />
             <TabBar />
           </div>

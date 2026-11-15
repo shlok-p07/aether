@@ -5,3 +5,6 @@ dist
 *.tsbuildinfo
 .DS_Store
 .impeccable/hook.cache.json
+.vercel
+.env*
+!.env.example

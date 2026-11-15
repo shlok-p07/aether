@@ -32,6 +32,7 @@ export type State = {
   volume: number
   autoplay: boolean
   lyrics: boolean
+  about: boolean
 }
 
 const KEY = 'aether.v2'
@@ -49,6 +50,7 @@ const fresh = (): State => ({
   volume: 80,
   autoplay: true,
   lyrics: false,
+  about: false,
 })
 
 const MAX_EVENTS = 5000
@@ -119,6 +121,7 @@ function normalize(s: Partial<State>, base = fresh()): State {
     volume: typeof s.volume === 'number' ? Math.min(100, Math.max(0, s.volume)) : base.volume,
     autoplay: s.autoplay !== false,
     lyrics: s.lyrics === true,
+    about: s.about === true,
   }
 }
 

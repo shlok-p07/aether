@@ -41,7 +41,13 @@ Tip: in Google Cloud, restrict the key to "YouTube Data API v3" and to `http://l
   - **Import from YouTube:** paste a Public or Unlisted YouTube or YouTube Music playlist link (up to 500 songs, a few units of quota).
   - **Share a playlist as a link:** the songs are packed into the link itself, so no server or account is needed, and the person opening it doesn't need a key to play it.
 - **Your stats:** listening time, top songs, top artists and when you listen, for 7 days, 30 days or all time. Only time you actually hear counts.
-- **Lyrics (optional, off by default):** time-synced lyrics from [LRCLIB](https://lrclib.net) in the side panel or full screen; tap a line to jump there. Turning them on sends each song's title and artist to lrclib.net.
+- **Lyrics and About, for whatever's playing:** open them from the side panel's Lyrics and About tabs, or tap the song's title in the player bar (works on phone too).
+  - **Lyrics:** time-synced lyrics from [LRCLIB](https://lrclib.net); tap a line to jump there.
+  - **About:** where the song comes from. It shows the original release date, album, writers, producers and label, where the artist is from, and the story behind the song.
+    - Credits come from the YouTube upload itself (auto-generated "Topic" uploads list them).
+    - Dates, albums and hometowns come from [MusicBrainz](https://musicbrainz.org).
+    - The background comes from [Wikipedia](https://wikipedia.org), or the artist's article when the song has none.
+  - Both ask once before turning on, because they send the song's title and artist to those services (lrclib.net, musicbrainz.org, wikipedia.org). You can switch them in Settings too.
 - **Player:**
   - Play, pause, next, previous, seek, volume and mute.
   - Shuffle, plus repeat (all or one song).

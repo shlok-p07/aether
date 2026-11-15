@@ -8,6 +8,7 @@ import { art } from '../data/youtube'
 import { fmtTime, useNav, usePlayer, type Page } from '../app/context'
 import { Art, LikeButton, TrackMenu } from './bits'
 import { LyricsView } from './lyrics'
+import { AboutView } from './about'
 
 const NAV: { page: Page; label: string; icon: ReactNode }[] = [
   { page: { name: 'home' }, label: 'Home', icon: <HomeIcon size={20} strokeWidth={1.75} aria-hidden="true" /> },
@@ -17,7 +18,7 @@ const NAV: { page: Page; label: string; icon: ReactNode }[] = [
 ]
 
 const section = (p: Page) =>
-  ['liked', 'history', 'playlist', 'stats'].includes(p.name) ? 'library' : ['artist', 'queue', 'lyrics', 'shared'].includes(p.name) ? '' : p.name
+  ['liked', 'history', 'playlist', 'stats'].includes(p.name) ? 'library' : ['artist', 'queue', 'song', 'shared'].includes(p.name) ? '' : p.name
 
 export function Sidebar() {
   const nav = useNav()
@@ -97,9 +98,7 @@ export function NowPlaying({ stage }: { stage: ReactNode }) {
     [plays],
   )
   const last = recent[0]
-  const lyricsOn = useStore((s) => s.lyrics)
-  const [tab, setTab] = useState<'next' | 'lyrics'>('next')
-  const showLyrics = lyricsOn && tab === 'lyrics'
+  const [tab, setTab] = useState<'next' | 'lyrics' | 'about'>('next')
   return (
     <aside className={`now${t ? '' : ' is-empty'}`} aria-label="Now playing">
       <div className="now-stage">
@@ -159,22 +158,32 @@ export function NowPlaying({ stage }: { stage: ReactNode }) {
           <TrackMenu track={t} />
         </div>
       )}
-      {t && lyricsOn && (
+      {t && (
         <div className="seg" role="group" aria-label="Show in this panel">
-          <button aria-pressed={tab === 'next'} onClick={() => setTab('next')}>
-            Up next
-          </button>
-          <button aria-pressed={tab === 'lyrics'} onClick={() => setTab('lyrics')}>
-            Lyrics
-          </button>
+          {(
+            [
+              ['next', 'Up next'],
+              ['lyrics', 'Lyrics'],
+              ['about', 'About'],
+            ] as const
+          ).map(([k, label]) => (
+            <button key={k} aria-pressed={tab === k} onClick={() => setTab(k)}>
+              {label}
+            </button>
+          ))}
         </div>
       )}
-      {t && showLyrics && (
+      {t && tab === 'lyrics' && (
         <section className="now-next now-lyrics" aria-label="Lyrics">
           <LyricsView where="rail" />
         </section>
       )}
-      {t && !showLyrics && (
+      {t && tab === 'about' && (
+        <section className="now-next" aria-label="About this song">
+          <AboutView />
+        </section>
+      )}
+      {t && tab === 'next' && (
         <section className="now-next" aria-labelledby="up-next">
           <div className="shelf-head">
             <h2 id="up-next">Up next</h2>
@@ -212,7 +221,6 @@ export function PlayerBar() {
   const t = p.current
   const dur = p.duration || t?.duration || 0
   const pct = dur ? Math.min(100, (p.time / dur) * 100) : 0
-  const lyricsOn = useStore((s) => s.lyrics)
   const VolIcon = p.muted || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2
   const [open, setOpen] = useState(false)
   return (
@@ -220,10 +228,21 @@ export function PlayerBar() {
       <span className="bar-progress" aria-hidden="true" />
       <div className="bar-song">
         {t ? <Art id={t.id} className="bar-art" /> : <span className="art bar-art art-empty" />}
-        <div className="bar-text">
-          <p className="bar-title">{t ? t.title : 'Not playing'}</p>
-          <p className="bar-artist">{t ? t.artist : 'Choose a song to start'}</p>
-        </div>
+        {t ? (
+          <button
+            className="bar-text bar-open"
+            onClick={() => (nav.page.name === 'song' ? nav.back() : nav.go({ name: 'song', tab: 'about' }))}
+            aria-label={`${t.title} by ${t.artist}. Open lyrics and song info`}
+          >
+            <span className="bar-title">{t.title}</span>
+            <span className="bar-artist">{t.artist}</span>
+          </button>
+        ) : (
+          <div className="bar-text">
+            <p className="bar-title">Not playing</p>
+            <p className="bar-artist">Choose a song to start</p>
+          </div>
+        )}
         {t && <LikeButton track={t} />}
       </div>
 
@@ -295,11 +314,11 @@ export function PlayerBar() {
           aria-label="Volume"
           style={{ ['--pct' as string]: `${p.muted ? 0 : volume}%` }}
         />
-        {lyricsOn && t && (
+        {t && (
           <button
             className="icon-btn bar-lyrics"
-            onClick={() => (nav.page.name === 'lyrics' ? nav.back() : nav.go({ name: 'lyrics' }))}
-            aria-pressed={nav.page.name === 'lyrics'}
+            onClick={() => (nav.page.name === 'song' ? nav.back() : nav.go({ name: 'song', tab: 'lyrics' }))}
+            aria-pressed={nav.page.name === 'song'}
             aria-label="Lyrics"
             title="Lyrics"
           >

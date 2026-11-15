@@ -6,8 +6,9 @@ import {
   ACCENTS, actions, exportBackup, forgotten, importBackup, onRepeat, recentlyPlayed, searchLibrary, stats, store, timeMix, topArtists, useStore,
   type Accent, type Period, type Track,
 } from './store'
-import { ago, fmtLong, fmtTime, songs, useAsync, useNav, usePlayer } from './app/context'
+import { ago, fmtLong, fmtTime, songs, useAsync, useNav, usePlayer, type SongTab } from './app/context'
 import { LyricsView } from './components/lyrics'
+import { AboutView } from './components/about'
 import { Art, Cards, Loadable, PlayAll, Shelf, ShuffleAll, TrackRows } from './components/bits'
 import { YouTubeSetup } from './components/YouTubeSetup'
 
@@ -928,6 +929,16 @@ export function Settings() {
           </span>
           <input type="checkbox" role="switch" checked={s.lyrics} onChange={(e) => actions.set('lyrics', e.target.checked)} />
         </label>
+        <label className="switch-row">
+          <span>
+            <span className="switch-title">Song background</span>
+            <span className="switch-sub">
+              Where each song comes from: its story from Wikipedia, plus first release, album and the artist's hometown from MusicBrainz. When on, the title and
+              artist are sent to wikipedia.org and musicbrainz.org. Credits from the YouTube upload show either way.
+            </span>
+          </span>
+          <input type="checkbox" role="switch" checked={s.about} onChange={(e) => actions.set('about', e.target.checked)} />
+        </label>
       </section>
 
       <section className="settings-group" aria-labelledby="set-yt">
@@ -975,7 +986,7 @@ export function Settings() {
         <h2 id="set-about">About</h2>
         <p className="page-sub prose">
           Aether is free and adds no ads. Songs play in YouTube's own player, which may show YouTube's ads, and their sound is never changed. Your likes,
-          playlists and history stay in this browser. Nothing is sent anywhere except requests to YouTube, plus song titles to LRCLIB if you turn lyrics on.
+          playlists and history stay in this browser. Nothing is sent anywhere except requests to YouTube, plus song titles to LRCLIB, Wikipedia and MusicBrainz if you turn on lyrics or song background.
         </p>
       </section>
     </div>
@@ -1117,22 +1128,37 @@ export function Shared({ title, tracks }: { title: string; tracks: Track[] }) {
   )
 }
 
-// ---------------- Lyrics ----------------
+// ---------------- Song: lyrics and where it comes from ----------------
 
-export function LyricsPage() {
+export function SongPage({ initial }: { initial: SongTab }) {
   const t = usePlayer().current
+  const [tab, setTab] = useState<SongTab>(initial)
   return (
-    <div className="page page-lyrics">
+    <div className="page page-song">
       <BackLink />
       <header className="page-head">
-        <h1>Lyrics</h1>
+        <h1>{t ? t.title : 'Nothing playing'}</h1>
+        {t && <p className="page-sub">{t.artist}</p>}
         {t && (
-          <p className="page-sub">
-            {t.title} · {t.artist}
-          </p>
+          <div className="seg" role="group" aria-label="Show">
+            <button aria-pressed={tab === 'lyrics'} onClick={() => setTab('lyrics')}>
+              Lyrics
+            </button>
+            <button aria-pressed={tab === 'about'} onClick={() => setTab('about')}>
+              About
+            </button>
+          </div>
         )}
       </header>
-      <LyricsView where="page" />
+      {!t ? (
+        <div className="notice">
+          <p>Play a song to see its lyrics and where it comes from.</p>
+        </div>
+      ) : tab === 'lyrics' ? (
+        <LyricsView where="page" />
+      ) : (
+        <AboutView />
+      )}
     </div>
   )
 }

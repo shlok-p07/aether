@@ -6,7 +6,7 @@ import { readShareLink } from './data/share'
 import { NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
 import { YouTubeStage, type YTHandle, type YTState } from './components/YouTubeStage'
 import { NowPlaying, PlayerBar, Sidebar, TabBar } from './components/chrome'
-import { Artist, History, Home, Library, Liked, LyricsPage, PlaylistPage, Queue, Search, Settings, Shared, Stats } from './pages'
+import { Artist, History, Home, Library, Liked, PlaylistPage, Queue, Search, Settings, Shared, SongPage, Stats } from './pages'
 
 const shuffled = <T,>(xs: T[]) => {
   const a = [...xs]
@@ -399,7 +399,7 @@ export default function App() {
             {page.name === 'queue' && <Queue />}
             {page.name === 'settings' && <Settings />}
             {page.name === 'stats' && <Stats />}
-            {page.name === 'lyrics' && <LyricsPage />}
+            {page.name === 'song' && <SongPage key={page.tab} initial={page.tab} />}
             {page.name === 'shared' && <Shared title={page.title} tracks={page.tracks} />}
           </main>
             {toast && (

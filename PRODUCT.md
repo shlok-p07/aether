@@ -43,7 +43,7 @@ Your home is built from your own listening. It is computed locally from what you
   - trending for the listener's region
   - autoplay of more songs from the same artist when the queue ends, skipping songs the listener keeps skipping
   - a Stats page (time, top songs, top artists, time of day) for 7 days, 30 days or all time
-- Lyrics are opt-in and come from LRCLIB; only then do song titles and artists leave the browser (to lrclib.net).
+- Lyrics (LRCLIB) and "About this song" background (MusicBrainz for original release, album and artist origin; Wikipedia for the story) are opt-in, asked once in place; only then do song titles and artists leave the browser. YouTube-upload credits (writers, producers, label) need no extra opt-in since YouTube is already the source.
 - Data portability without a server: JSON backup export/import (merge, never delete), YouTube playlist import by link, and playlists shared as self-contained links.
 - Installable as a web app (manifest + a shell-only service worker that never caches YouTube, Google API or LRCLIB requests).
 - An optional shared server (worker/) can hold one key for a few friends; a personal key always takes over.

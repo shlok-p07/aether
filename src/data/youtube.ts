@@ -284,6 +284,12 @@ export async function importPlaylist(id: string, key: string, signal?: AbortSign
   return { title: decode(title), tracks, skipped: unique.length - tracks.length }
 }
 
+/** A video's description, where YouTube's auto-generated uploads list label, release date and credits (1 unit). */
+export async function videoDescription(id: string, key: string, signal?: AbortSignal) {
+  const body = await call<{ items?: { snippet?: { description?: string } }[] }>('/videos', { part: 'snippet', id }, key, signal)
+  return body.items?.[0]?.snippet?.description ?? ''
+}
+
 /** Cheap check that a pasted key works (1 unit). */
 export const checkKey = (key: string) => call('/videos', { part: 'id', chart: 'mostPopular', videoCategoryId: '10', maxResults: '1' }, key)
 

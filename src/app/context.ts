@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { Track } from '../store'
 
 export type Repeat = 'off' | 'all' | 'one'
+export type SongTab = 'lyrics' | 'about'
 
 export type PlayerApi = {
   queue: Track[]
@@ -40,7 +41,7 @@ export type Page =
   | { name: 'queue' }
   | { name: 'settings' }
   | { name: 'stats' }
-  | { name: 'lyrics' }
+  | { name: 'song'; tab: SongTab }
   | { name: 'shared'; title: string; tracks: Track[] }
 
 export type NavApi = {

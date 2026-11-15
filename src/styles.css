@@ -1102,6 +1102,30 @@ button.now-artist:hover {
 .bar-text {
   min-width: 0;
 }
+/* The playing song's title opens its lyrics and story. */
+.bar-open {
+  display: grid;
+  justify-items: start;
+  min-height: 44px;
+  align-content: center;
+  padding: 0 8px;
+  margin: 0 -8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  text-align: left;
+  transition: background-color 0.15s var(--ease);
+}
+@media (hover: hover) {
+  .bar-open:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+.bar-open .bar-title,
+.bar-open .bar-artist {
+  display: block;
+  max-width: 100%;
+}
 .bar-title {
   font-size: 15px;
   font-weight: 600;
@@ -1341,8 +1365,11 @@ button.now-artist:hover {
 }
 .now .seg {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   flex: none;
+}
+.now .seg button {
+  padding: 0 8px;
 }
 .page-head .seg {
   margin-top: 8px;
@@ -1455,6 +1482,68 @@ button.now-artist:hover {
   width: var(--share, 0%);
   border-radius: inherit;
   background: var(--accent);
+}
+
+/* ---------- about this song ---------- */
+
+.about {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+  max-width: 680px;
+}
+.facts {
+  margin: 0;
+  display: grid;
+}
+.facts div {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hair);
+  font-size: 15px;
+}
+.facts div:first-child {
+  padding-top: 0;
+}
+.facts dt {
+  color: var(--text-2);
+}
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.story {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.story h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+.story p {
+  max-width: 62ch;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.story a,
+.about-sources a {
+  font-size: 15px;
+  font-weight: 500;
+}
+.about-sources {
+  font-size: 13px;
+  color: var(--text-2);
+}
+.about-sources a {
+  font-size: inherit;
+}
+.page-song .about .facts div {
+  grid-template-columns: 140px minmax(0, 1fr);
 }
 
 /* ---------- lyrics ---------- */

@@ -301,7 +301,7 @@ A single status message in the main column, centred 16px above its foot: raised 
 The home screen's signature: a mosaic of the listener's six most-played songs, at most 760px wide, on a four-column grid of square cells with 12px gaps (8px on phone) and dense packing. Tile size comes from play share. The top song takes a 2x2 square when it leads the next by 40% or more, otherwise a wide tile. Any other song with at least 60% of the leader's plays gets a 2x1 wide tile, and the rest get single squares. Each tile is an 18px-radius, hairline-bordered button with Soft Lift, the cover filling it, and a bottom caption on a black-to-clear scrim: title (13px/600; 17px on wide tiles; 32px/700 on the large square) and a tabular "N plays" line in light grey. Hover lifts the tile 2px over 300ms. On phone captions shrink (the large square to 17px, wide to 13px) and single squares drop the play count. It appears once the listener has three repeated songs; before that, a "Start your rotation" shelf of Explore chips takes its place.
 
 ### Segmented Control
-A pill group on a 6% white wash holding 44px pill buttons (15px/600, secondary grey). The pressed option fills raised graphite with paper-white text. Used for the Stats period (7 days, 30 days, All time) and, when lyrics are on, the rail's Up next / Lyrics switch (two equal halves; hidden on phone).
+A pill group on a 6% white wash holding 44px pill buttons (15px/600, secondary grey). The pressed option fills raised graphite with paper-white text. Used for the Stats period (7 days, 30 days, All time), the rail's Up next / Lyrics / About switch (three equal thirds, shown whenever a song is loaded; hidden on phone) and the song page's Lyrics / About switch.
 
 ### Library Action Rows
 "New playlist" and "Import from YouTube" sit at the top of the Playlists list as ordinary track-row-sized rows, with the accent glyph on an empty 48px tile, instead of header buttons. Choosing one swaps the rows for its inline form (label, pill field, accent submit, quiet Cancel, 13px hint or System Red error).
@@ -311,6 +311,12 @@ A page title, a 15px explanation, the period control, then the Statement sentenc
 
 ### Lyrics
 Lines are full-width 44px buttons (17px/600 in the rail, 24px/700 on the Lyrics page): the sung line is paper white, others tertiary grey, and tapping a line seeks there. The list scrolls inside its own region with a 24px masked fade at both edges and follows the song, keeping the current line a third of the way down; a wheel, touch or arrow-key scroll pauses following and shows a quiet "Follow along" pill. A 13px foot credits LRCLIB and says when timing is off because the video's length differs from the recording.
+
+### About This Song
+A definition list of facts (Released, Album, Written by, Produced by, Label, Artist from, Born or Formed): 15px rows split by hairlines, the label in secondary grey in a 112px column (140px on the song page), the value in paper white. Missing facts are left out, never shown as blanks. Below, a "Background" (or "About <artist>") 17px/700 heading, the Wikipedia intro at 15px/1.55 in secondary grey capped at 62ch, and a "Read more on Wikipedia" link; a 13px line names the sources with links and the CC BY-SA credit. Before the listener opts in, an inline notice explains what is sent where and offers one accent button.
+
+### Song Page
+Opened by tapping the playing song's title in the player bar (a 44px tappable block with a 6% wash on hover-capable devices only) or the lyrics button. The page title is the song, the subtitle the artist, then the Lyrics / About segmented control.
 
 ## Do's and Don'ts
 

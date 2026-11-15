@@ -1,0 +1,6 @@
+node_modules
+dist
+.impeccable/review
+.env.local
+*.tsbuildinfo
+.DS_Store

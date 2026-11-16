@@ -7,6 +7,7 @@ Aether plays songs in YouTube's official player and builds everything else aroun
 - **Official songs.** Search ranks official artist, label and "Topic" channels first. Shorts and duplicate uploads are filtered out.
 - **Personal by default.** Your home is computed from what you play, skip, like and save.
 - **Your devices in sync.** Sign in with Google, optionally, and your library, settings and YouTube key follow you to every device.
+- **Listen together.** Send a link and anyone can listen along, in sync, on any phone or computer, with no account, app or YouTube key.
 - **Installable.** Aether is a progressive web app, so you can install it on your phone's home screen.
 
 > [!NOTE]
@@ -42,6 +43,33 @@ Aether plays songs in YouTube's official player and builds everything else aroun
 - **Mixes:** for DJ mixes and compilations, Aether explains why it can't show lyrics, lists the artists named in the title, and shows the uploader's tracklist with tap-to-jump.
 - **Ambient colour:** the playing song's artwork tints the interface.
 - **Controls:** keyboard shortcuts, media keys and lock-screen controls.
+
+### Listen together
+
+Play music with other people at the same moment, wherever they are. Select **Listen together**, enter your name, select **Go live**, and send the link, or show the QR code to people in the same room. Anyone who opens it hears what you play on their own phone or computer. They don't need an account, the app, or a YouTube key.
+
+The session screen shows the song with a live sync readout (for example, **In sync · 0.2s**), what's up next, who's listening, and an activity log of joins, songs, requests and loves.
+
+- **You stay in control:** only the host can skip, pause or seek. Listeners can pause for themselves and select **Play along** to catch up.
+- **Requests:** listeners tap any song in Search or their library, and it joins the end of the host's queue.
+- **Reactions:** listeners can send a **Love** for the song that's playing, and everyone sees it.
+- **Staying in sync:** each listener's player corrects itself when it drifts more than 2 seconds from the host.
+- **Ending:** the session lasts until the host selects **End session**, or 12 hours after the host was last active. Reloading the page doesn't end it.
+
+#### Preventing spam
+
+The database rules enforce these limits, so a modified copy of the app can't get around them:
+
+| Limit | Value |
+|---|---|
+| New sessions | One a minute per person. Starting a new session deletes your previous one. |
+| Song requests | One every 10 seconds per listener. |
+| Loves | One every 5 seconds per listener. |
+| Removing a listener | The host can remove anyone. Removed listeners can't rejoin that session. |
+| What can be sent | Only real YouTube video IDs, names up to 24 characters, and at most 50 songs in up next. |
+| Control | Only the host can change the session. Listeners can't read each other's requests. |
+
+Listen together needs [Firebase set up](#setting-up-sign-in-and-sync), with anonymous sign-in turned on.
 
 ## Using Aether
 
@@ -171,7 +199,8 @@ Sign-in is optional. Without it, Aether stores everything in the browser. With i
 2. Turn on Google sign-in:
    1. Go to **Build** > **Authentication** and select **Get started**.
    2. On the **Sign-in method** tab, select **Google**, turn on **Enable**, choose a support email, and select **Save**.
-   3. On the **Settings** tab, open **Authorized domains** and add your deployment's domain, for example `your-aether.vercel.app`. `localhost` is already listed.
+   3. For Listen together, also select **Add new provider** > **Anonymous**, turn on **Enable**, and select **Save**. Listeners are signed in anonymously, which needs no account or personal details.
+   4. On the **Settings** tab, open **Authorized domains** and add your deployment's domain, for example `your-aether.vercel.app`. `localhost` is already listed.
 3. Create the database:
    1. Go to **Build** > **Firestore Database** and select **Create database**.
    2. Choose a location near your listeners and start in **production mode**.
@@ -190,7 +219,7 @@ Sign-in is optional. Without it, Aether stores everything in the browser. With i
 
 To check that it works, open Aether, go to **Settings** > **Account**, and select **Continue with Google**. After you sign in, the account card shows **Synced just now**. Open Aether in a second browser, sign in with the same account, and your library appears.
 
-Each person's library is one document that only they can read and write. Aether loads the Firebase code only when someone signs in, so people who never sign in don't download it.
+Each person's library is one document that only they can read and write. Each Listen together session is one document that only its host can change, and anyone with the link can read. Aether loads the Firebase code only when someone signs in or uses Listen together, so other people don't download it.
 
 ## Sharing one key with friends
 
@@ -225,13 +254,15 @@ Aether has no analytics and no server of its own. Your browser contacts these se
 | [LRCLIB](https://lrclib.net) | Only after you turn on lyrics | The song title, artist and length. |
 | [MusicBrainz](https://musicbrainz.org) and [Wikipedia](https://www.wikipedia.org) | Only after you turn on song background | The song title and artist. |
 | Google sign-in and [Firebase](https://firebase.google.com) | Only after you sign in | Your Google name, email and photo for the account, and your library, settings and YouTube key, stored in a document that only you can read. |
+| [Firebase](https://firebase.google.com) | Only during Listen together | The name you enter, an anonymous ID, the songs in the session, song requests and reactions. People with the link can see them. The host's Aether deletes the session when it ends. |
 
 You can turn lyrics and song background on or off in **Settings**. Under **Settings** > **Account**, you can sign out, which keeps your library on the device, or delete your saved library from your account.
 
 ## Known limitations
 
-- **Visible player only.** YouTube's terms require the player to stay visible, so audio-only background playback isn't available. On phones, the video sits at the top of the screen. Phone browsers pause the player when the screen locks, so while a song plays, Aether keeps the screen on. To turn this off, go to **Settings** > **Playback** > **Keep screen on while playing**. Music stops when you lock the phone or switch to another app.
+- **Visible player only.** YouTube's terms require the player to stay visible, so audio-only background playback isn't available. On phones, the video sits at the top of the screen. Phone browsers pause the player when the screen locks, so while a song plays, Aether keeps the screen on. To turn this off, go to **Settings** > **Playback** > **Keep screen on while playing**. Music stops when you lock the phone or switch to another app. To keep listening with the screen locked, open the queue and select **Play in YouTube app**. This hands the current song and up to 49 more to YouTube's own app, which plays in the background if you have YouTube Premium.
 - **Some videos don't play.** Some owners allow playback only on youtube.com. Aether skips those videos and tells you why.
+- **Listen together timing.** Listeners stay within about 2 seconds of the host. A listener whose phone clock is set by hand can drift further. On some phones, the first song needs a tap on **Play along** before it starts, because browsers block sound until you interact with the page.
 - **Sync conflicts.** If two signed-in devices change the library within the same second or two, the later change wins.
 - **Sync needs setup.** Sign-in appears only when the deployment has [Firebase configured](#setting-up-sign-in-and-sync). Without it, use a backup file to move your library.
 - **No "songs like this".** The YouTube Data API no longer offers related videos, so discovery comes from your top artists, trending and search.
@@ -272,9 +303,12 @@ src/
     mix.ts           DJ mix and compilation detection
     sync.ts          Sign-in and sync engine (merge on first sign-in, then live)
     sync-firebase.ts Firebase backend: Google sign-in and Firestore
+    room.ts          Listen together engine: sessions, sync maths, requests
+    room-firebase.ts Firebase backend for Listen together sessions
+    quota.ts         Estimate of today's YouTube quota
 public/              Icons, web app manifest and service worker
 worker/              Optional shared-key Cloudflare Worker
-firestore.rules      Database rules: each person can access only their own library
+firestore.rules      Database rules: private libraries, host-only Listen together sessions
 DESIGN.md            Design system: tokens, components and rules
 ```
 

@@ -309,3 +309,13 @@ export async function videoDescription(id: string, key: string, signal?: AbortSi
 export const checkKey = (key: string) => call('/videos', { part: 'id', chart: 'mostPopular', videoCategoryId: '10', maxResults: '1' }, key)
 
 export const art = (id: string, hi = true) => `https://i.ytimg.com/vi/${encodeURIComponent(id)}/${hi ? 'hq720' : 'mqdefault'}.jpg`
+
+/**
+ * A link that opens the songs as a queue on YouTube (up to 50), in the YouTube app on phones.
+ * This is YouTube's own "watch_videos" address, which turns a list of videos into a temporary playlist.
+ */
+export const youtubeQueueLink = (tracks: { id: string }[]) =>
+  `https://www.youtube.com/watch_videos?video_ids=${tracks
+    .slice(0, 50)
+    .map((t) => encodeURIComponent(t.id))
+    .join(',')}`

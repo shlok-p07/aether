@@ -250,16 +250,22 @@ Desktop (1180px and up) is three floating panels on the black ground: a 232px si
 
 The player dock floats over the foot of all three panels, inset by the same gutter so its edges line up with the outer panel edges. Its height is measured live (a ResizeObserver writes it to `--bar-space`, 104px until measured), and every panel pads its foot by that height plus its own margin, so the last row of content, the scroll target and the toast always clear the dock whatever its height.
 
-From 760px to 1179px the sidebar is removed and the rail stays 400px wide (so the video stage stays at least 200px tall, as YouTube requires); the player and a four-tab bar (Home, Search, Library, Settings) share one frosted dock.
+From 760px to 1179px (and on touch screens of any width) there is no rail: pages get the full width. The video moves into the dock at 356x200 (the smallest 16:9 size YouTube allows), at the dock's left end beside the controls; it stays in place in the page and is only drawn there (fixed position measured from the dock into `--stage-x` and `--stage-y`), so it never reloads mid-song. The dock is 216px tall while a song is loaded, with the song and queue button on top and transport and scrubber beneath; Up next, Lyrics and About live on the song page (tap the title). Below 1180px a four-tab bar (Home, Search, Library, Settings) shares the dock; touch screens 1180px and wider keep the sidebar instead. Measured with a song playing: pages get 74% of an iPad in portrait (was 41%) and 56% in landscape (was 37%).
 
-Below 760px the layout is a single column with no gutters: panels lose their borders and radius, the video band sticks to the top edge to edge (only while a song is loaded) over the main column, content scrolls in 16px gutters with 24px section gaps, and the dock becomes a floating player capsule (8px in from each side) above a full-bleed frosted tab bar.
+Short landscape screens (760px wide or more, 560px tall or less: a phone on its side) keep a 390px rail holding only the video (372x209), and the player is one compact row.
+
+Below 760px the layout is a single column with no gutters: panels lose their borders and radius, the video band sticks to the top edge to edge (only while a song is loaded) over the main column, content scrolls in 16px gutters with 24px section gaps, and the dock becomes a floating player capsule (8px in from each side) above a full-bleed frosted tab bar. On phones and short landscape screens the capsule and tabs slide away (0.35s, the slow curve) while a page scrolls down past 120px, and return on any scroll up, at the end of the page, on a page change, when a message appears, or when focus moves into them. The video never slides away.
+
+Touch screens (`pointer: coarse`) drop the volume slider and mute button: phones and tablets set volume with their own buttons.
+
+Every page's column is `minmax(0, 1fr)`, so a sideways-scrolling shelf can never widen the page past the screen.
 
 Horizontal shelves bleed to the column edge (negative margin equal to the gutter) and scroll with snap; desktop cover columns are 168px, phone 140px. Library tiles use an auto-fill grid with a 220px minimum.
 
 Spacing steps are 4, 8, 12, 16, 24, 32 and 48px, with 40px for the desktop main panel's padding; 2px is used only for text-stack gaps inside cards and rows.
 
 ### Named Rules
-**The Visible Player Rule.** The YouTube stage is always on screen while a song plays: in the rail on desktop and tablet, pinned to the top on phone. No layout may hide or shrink it below 200x200 CSS pixels.
+**The Visible Player Rule.** The YouTube stage is always on screen while a song plays: in the rail on desktop, in the dock on tablets and touch screens, pinned to the top on phone. Chrome that slides away on scroll never includes it. No layout may hide or shrink it below 200x200 CSS pixels.
 
 **The 44 Rule.** Every interactive element is at least 44px in its smallest dimension (rows 64px, mini rows 56px, the search field 56px). The search field's inner clear button (32px) is the only smaller control.
 

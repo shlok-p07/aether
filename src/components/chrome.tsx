@@ -10,6 +10,7 @@ import { Art, LikeButton, TrackMenu } from './bits'
 import { LyricsView } from './lyrics'
 import { AboutView } from './about'
 import { SidebarAccount } from './account'
+import { RoomNavItem } from './room'
 
 const NAV: { page: Page; label: string; icon: ReactNode }[] = [
   { page: { name: 'home' }, label: 'Home', icon: <HomeIcon size={20} strokeWidth={1.75} aria-hidden="true" /> },
@@ -19,7 +20,7 @@ const NAV: { page: Page; label: string; icon: ReactNode }[] = [
 ]
 
 const section = (p: Page) =>
-  ['liked', 'history', 'playlist', 'stats'].includes(p.name) ? 'library' : ['artist', 'queue', 'song', 'shared'].includes(p.name) ? '' : p.name
+  ['liked', 'history', 'playlist', 'stats'].includes(p.name) ? 'library' : ['artist', 'queue', 'song', 'shared', 'room'].includes(p.name) ? '' : p.name
 
 export function Sidebar() {
   const nav = useNav()
@@ -45,6 +46,9 @@ export function Sidebar() {
             </button>
           </li>
         ))}
+        <li>
+          <RoomNavItem active={nav.page.name === 'room'} />
+        </li>
       </ul>
       <p className="side-heading">Your music</p>
       <ul className="side-list side-scroll">

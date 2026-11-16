@@ -1,7 +1,12 @@
 rules_version = '2';
 
-// Aether sync: each signed-in person can read and write only their own library document.
-// Paste these into Firebase console > Firestore Database > Rules, then Publish.
+// Aether's database rules.
+// - users/{uid}: each signed-in person's synced library, readable and writable only by them.
+// - rooms/{room}: "Listen together" sessions. Anyone signed in (listeners are signed in anonymously) who has the
+//   unguessable link can read a session; only its host can change it. Listeners can add themselves, ask for songs
+//   and send reactions, each rate-limited here; the host can remove (and block) a listener.
+// - hosts/{uid}: rate-limits new sessions to one a minute per person.
+// Deploy with: firebase deploy --only firestore:rules
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
@@ -11,6 +16,139 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['library', 'enc', 'device', 'v', 'updatedAt'])
         && request.resource.data.enc in ['deflate', 'json']
         && request.resource.data.library.size() < 1000000;
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    function shortText(s, max) {
+      return s is string && s.size() <= max;
+    }
+    function name(n) {
+      return n is string && n.size() > 0 && n.size() <= 24;
+    }
+    // Only real YouTube video IDs, so nobody can push junk into someone else's player.
+    function isTrack(t) {
+      return t is map
+        && t.keys().hasAll(['id', 'title', 'artist'])
+        && t.keys().hasOnly(['id', 'title', 'artist', 'channelId', 'duration'])
+        && t.id is string && t.id.matches('^[A-Za-z0-9_-]{11}$')
+        && shortText(t.title, 300) && shortText(t.artist, 200);
+    }
+    // Sessions carry an "expires" time, pushed forward while the host is active. After it passes, the session is closed:
+    // nobody can join, ask for songs or react. (Automatic deletion would need a billing account; Aether stays free.)
+    function expiresSoon(e) {
+      return e is timestamp && e < request.time + duration.value(13, 'h');
+    }
+    function validRoom(d) {
+      return d.keys().hasOnly(['host', 'hostName', 'track', 'queue', 'playing', 'pos', 'at', 'ended', 'v', 'created', 'banned', 'expires'])
+        && name(d.hostName)
+        && (d.track == null || isTrack(d.track))
+        && d.queue is list && d.queue.size() <= 50
+        && d.playing is bool && d.pos is number && d.at is number
+        && d.ended is bool
+        && d.banned is list && d.banned.size() <= 100
+        && expiresSoon(d.expires);
+    }
+    function roomData(room) {
+      return get(/databases/$(database)/documents/rooms/$(room)).data;
+    }
+    // Still running, and the host hasn't removed this person.
+    function canTalk(room) {
+      let r = roomData(room);
+      return r.ended == false && r.expires > request.time && !(request.auth.uid in r.banned);
+    }
+    function isHost(room) {
+      return signedIn() && roomData(room).host == request.auth.uid;
+    }
+
+    // One record per person, written in the same step as each new session: limits everyone to one new session a minute.
+    match /hosts/{uid} {
+      allow read: if owner(uid);
+      allow create: if owner(uid)
+        && request.resource.data.keys().hasOnly(['room', 'at', 'expires'])
+        && shortText(request.resource.data.room, 32)
+        && request.resource.data.at == request.time
+        && expiresSoon(request.resource.data.expires);
+      allow update: if owner(uid)
+        && request.resource.data.keys().hasOnly(['room', 'at', 'expires'])
+        && shortText(request.resource.data.room, 32)
+        && request.resource.data.at == request.time
+        && request.time > resource.data.at + duration.value(60, 's')
+        && expiresSoon(request.resource.data.expires);
+    }
+
+    match /rooms/{room} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.host == request.auth.uid
+        && validRoom(request.resource.data)
+        && request.resource.data.banned.size() == 0
+        && getAfter(/databases/$(database)/documents/hosts/$(request.auth.uid)).data.room == room
+        && getAfter(/databases/$(database)/documents/hosts/$(request.auth.uid)).data.at == request.time;
+      allow update: if signedIn()
+        && resource.data.host == request.auth.uid
+        && request.resource.data.host == resource.data.host
+        && validRoom(request.resource.data);
+      allow delete: if signedIn() && resource.data.host == request.auth.uid;
+
+      // Who's listening: one record per person, refreshed while they listen.
+      match /members/{uid} {
+        allow read: if signedIn();
+        allow create, update: if owner(uid)
+          && request.resource.data.keys().hasOnly(['name', 'at', 'expires'])
+          && name(request.resource.data.name)
+          && request.resource.data.at == request.time
+          && expiresSoon(request.resource.data.expires)
+          && canTalk(room);
+        allow delete: if owner(uid) || isHost(room);
+      }
+
+      // A listener's latest song request: one record each, replaced at most every 10 seconds. Only the host reads them.
+      match /requests/{uid} {
+        allow read, delete: if isHost(room);
+        allow create: if owner(uid)
+          && request.resource.data.keys().hasOnly(['name', 't', 'at', 'expires'])
+          && name(request.resource.data.name)
+          && isTrack(request.resource.data.t)
+          && request.resource.data.at == request.time
+          && expiresSoon(request.resource.data.expires)
+          && canTalk(room);
+        allow update: if owner(uid)
+          && request.resource.data.keys().hasOnly(['name', 't', 'at', 'expires'])
+          && name(request.resource.data.name)
+          && isTrack(request.resource.data.t)
+          && request.resource.data.at == request.time
+          && request.time > resource.data.at + duration.value(10, 's')
+          && expiresSoon(request.resource.data.expires)
+          && canTalk(room);
+      }
+
+      // A listener's latest "love": one record each, replaced at most every 5 seconds. Everyone in the session sees it.
+      match /reactions/{uid} {
+        allow read: if signedIn();
+        allow create: if owner(uid)
+          && request.resource.data.keys().hasOnly(['name', 'kind', 'title', 'at', 'expires'])
+          && request.resource.data.kind == 'love'
+          && name(request.resource.data.name)
+          && shortText(request.resource.data.title, 300)
+          && request.resource.data.at == request.time
+          && expiresSoon(request.resource.data.expires)
+          && canTalk(room);
+        allow update: if owner(uid)
+          && request.resource.data.keys().hasOnly(['name', 'kind', 'title', 'at', 'expires'])
+          && request.resource.data.kind == 'love'
+          && name(request.resource.data.name)
+          && shortText(request.resource.data.title, 300)
+          && request.resource.data.at == request.time
+          && request.time > resource.data.at + duration.value(5, 's')
+          && expiresSoon(request.resource.data.expires)
+          && canTalk(room);
+        allow delete: if owner(uid) || isHost(room);
+      }
     }
   }
 }

@@ -43,6 +43,7 @@ export type Page =
   | { name: 'stats' }
   | { name: 'song'; tab: SongTab }
   | { name: 'shared'; title: string; tracks: Track[] }
+  | { name: 'room' }
 
 export type NavApi = {
   page: Page

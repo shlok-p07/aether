@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { ChartColumn, ChevronLeft, Clock, Download, Heart, Link2, ListMusic, Plus, Search as SearchIcon, Share, Upload, X } from 'lucide-react'
-import { artistSongs, cleanArtist, importPlaylist, playlistId, regionName, search, trending, usesProxy } from './data/youtube'
+import { ChartColumn, ChevronLeft, Clock, Download, ExternalLink, Heart, Link2, ListMusic, Plus, Search as SearchIcon, Share, Upload, Users, X } from 'lucide-react'
+import { artistSongs, cleanArtist, importPlaylist, playlistId, regionName, search, trending, usesProxy, youtubeQueueLink } from './data/youtube'
 import { isLocalOrigin, shareLink } from './data/share'
 import {
   ACCENTS, actions, exportBackup, forgotten, importBackup, onRepeat, recentlyPlayed, searchLibrary, stats, store, timeMix, topArtists, useStore,
@@ -14,6 +14,7 @@ import { Art, Cards, Loadable, PlayAll, Shelf, ShuffleAll, TrackRows } from './c
 import { YouTubeSetup } from './components/YouTubeSetup'
 import { QuotaHint, QuotaMeter } from './components/quota'
 import { canKeepAwake } from './app/wakelock'
+import { useRoom } from './data/room'
 
 const EXPLORE = ['Pop hits', 'Hip-hop', 'R&B', 'Bollywood', 'K-pop', 'Latin', 'Afrobeats', 'Rock', 'EDM', 'Lo-fi', 'Chill', 'Workout', 'Focus', 'Party', 'Throwbacks', 'Country']
 
@@ -461,6 +462,7 @@ export function Library() {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [name, setName] = useState('')
+  const roomOn = useRoom().available
 
   const create = (e: FormEvent) => {
     e.preventDefault()
@@ -521,6 +523,21 @@ export function Library() {
                   </span>
                 </button>
               </li>
+              {roomOn && (
+                <li className="row">
+                  <button className="row-main" onClick={() => nav.go({ name: 'room' })}>
+                    <span className="row-art-wrap">
+                      <span className="art row-art art-empty art-action" aria-hidden="true">
+                        <Users size={20} strokeWidth={2} />
+                      </span>
+                    </span>
+                    <span className="row-text">
+                      <span className="row-title">Listen together</span>
+                      <span className="row-meta">Play music with friends, at the same moment</span>
+                    </span>
+                  </button>
+                </li>
+              )}
               <li className="row">
                 <button className="row-main" onClick={() => setImporting(true)}>
                   <span className="row-art-wrap">
@@ -790,6 +807,28 @@ export function Queue() {
           {player.shuffle ? 'Shuffle on · ' : ''}
           {player.repeat === 'one' ? 'Repeating this song' : player.repeat === 'all' ? 'Repeating the queue' : songs(upNext.length) + ' up next'}
         </p>
+        {player.current && (
+          <>
+            <div className="head-actions">
+              {/* An anchor, not window.open, so phones open it straight in the YouTube app. */}
+              <a
+                className="pill pill-quiet"
+                href={youtubeQueueLink([player.current, ...upNext])}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => player.playing && player.toggle()}
+              >
+                <ExternalLink size={16} strokeWidth={2} aria-hidden="true" /> {canKeepAwake ? 'Play in YouTube app' : 'Open on YouTube'}
+              </a>
+            </div>
+            {canKeepAwake && (
+              <p className="field-hint prose">
+                YouTube only lets Aether play with the screen on. Its own app keeps playing with the screen locked if you have YouTube Premium. This hands over{' '}
+                {upNext.length ? `this song and the next ${songs(Math.min(upNext.length, 49))}` : 'this song'} and pauses Aether.
+              </p>
+            )}
+          </>
+        )}
       </header>
       {player.current ? (
         <>
@@ -934,7 +973,8 @@ export function Settings() {
             <span>
               <span className="switch-title">Keep screen on while playing</span>
               <span className="switch-sub">
-                YouTube's player stops when your phone locks, so Aether keeps the screen on while a song plays. It turns off as usual when you pause.
+                YouTube's player stops when your phone locks, so Aether keeps the screen on while a song plays. It turns off as usual when you pause. To
+                listen with the screen locked, open the queue and choose Play in YouTube app (needs YouTube Premium).
               </span>
             </span>
             <input type="checkbox" role="switch" checked={s.awake} onChange={(e) => actions.set('awake', e.target.checked)} />

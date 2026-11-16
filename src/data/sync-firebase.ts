@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app'
+import { firebaseApp } from './firebase'
 import { GoogleAuthProvider, getAuth, getRedirectResult, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth'
 import { Bytes, deleteDoc, doc, getDoc, getFirestore, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import type { Backend, Remote } from './sync'
@@ -25,12 +25,7 @@ async function unpack(d: { library?: Bytes | string; enc?: string }): Promise<un
 }
 
 export function firebaseBackend(): Backend {
-  const app = initializeApp({
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  })
+  const app = firebaseApp()
   const auth = getAuth(app)
   const db = getFirestore(app)
   const provider = new GoogleAuthProvider()
@@ -43,8 +38,9 @@ export function firebaseBackend(): Backend {
 
   return {
     onUser(cb) {
+      // Listeners in a "Listen together" session are signed in anonymously; that isn't an account, so it never syncs.
       return onAuthStateChanged(auth, (u) =>
-        cb(u ? { uid: u.uid, name: u.displayName || u.email || 'You', email: u.email || '', photo: u.photoURL } : null),
+        cb(u && !u.isAnonymous ? { uid: u.uid, name: u.displayName || u.email || 'You', email: u.email || '', photo: u.photoURL } : null),
       )
     },
     async signIn() {

@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { Check, Copy, Heart, Link2, ListPlus, LoaderCircle, QrCode, Radio, Share, ShieldCheck, UserMinus, Users } from 'lucide-react'
+import { Check, Copy, Heart, Link2, ListPlus, LoaderCircle, QrCode, Radio, Share, ShieldCheck, UserMinus, Users, X } from 'lucide-react'
 import qrcode from 'qrcode-generator'
-import { cleanName, expectedPos, present, room, roomCode, roomLink, savedName, useRoom, type FeedItem, type Member, type RoomData } from '../data/room'
+import { cleanName, expectedPos, present, room, roomCode, roomLink, savedName, useRoom, type FeedItem, type Member, type QItem, type RoomData } from '../data/room'
 import { useSync } from '../data/sync'
 import { fmtTime, useNav, usePlayer } from '../app/context'
 import { Art } from './bits'
@@ -95,7 +95,7 @@ function Stage({ r, role, children }: { r: RoomData; role: 'host' | 'guest' | 'i
   const drift = hearing && p.playing ? Math.abs(p.time - expectedPos(r)) : null
   let state: string
   if (!t) state = role === 'host' ? 'Play any song and everyone hears it' : `Waiting for ${r.hostName} to play something`
-  else if (!r.playing) state = role === 'host' ? 'Paused for everyone' : `Paused by ${r.hostName}`
+  else if (!r.playing) state = r.act?.kind === 'pause' ? `Paused by ${r.act.by}` : 'Paused'
   else if (role === 'host') state = 'Playing for everyone'
   else if (role === 'invited') state = 'Playing now · join to listen'
   else if (drift === null) state = "You're not hearing it"
@@ -183,25 +183,6 @@ function People({ members, r, me, canRemove }: { members: Member[]; r: RoomData;
   )
 }
 
-const line = (f: FeedItem) => {
-  switch (f.kind) {
-    case 'start':
-      return 'You went live'
-    case 'join':
-      return `${f.who} joined`
-    case 'leave':
-      return `${f.who} left`
-    case 'song':
-      return `Now playing ${f.what}`
-    case 'love':
-      return `${f.who} loved ${f.what}`
-    case 'add':
-      return `${f.who} added ${f.what}`
-    case 'remove':
-      return `${f.who} was removed`
-  }
-}
-
 function Activity({ feed }: { feed: FeedItem[] }) {
   return (
     <section className="live-section" aria-labelledby="live-activity">
@@ -213,7 +194,7 @@ function Activity({ feed }: { feed: FeedItem[] }) {
               <time className="mono" dateTime={new Date(f.at).toISOString()}>
                 {clock(f.at)}
               </time>
-              <span>{line(f)}</span>
+              <span>{f.text}</span>
             </li>
           ))}
         </ol>
@@ -224,41 +205,87 @@ function Activity({ feed }: { feed: FeedItem[] }) {
   )
 }
 
-function UpNext({ r, role }: { r: RoomData; role: 'host' | 'guest' }) {
+function UpNext({ r }: { r: RoomData }) {
   const nav = useNav()
+  const player = usePlayer()
+  const can = room.canControl()
+  // The player mirrors the session (the song, then up next), so its queue positions line up with these entries by key.
+  const at = (x: QItem) => player.queue.findIndex((y) => (y as QItem).k === x.k)
   return (
     <section className="live-section" aria-labelledby="live-next">
-      <h2 id="live-next">
-        Up next <span className="live-count mono">{r.queue.length}</span>
-      </h2>
+      <div className="live-section-head">
+        <h2 id="live-next">
+          Up next <span className="live-count mono">{r.queue.length}</span>
+        </h2>
+        {can && r.queue.length > 0 && (
+          <button className="text-btn" onClick={player.clearQueue}>
+            Clear
+          </button>
+        )}
+      </div>
       {r.queue.length ? (
         <ol className="live-queue">
-          {r.queue.slice(0, 8).map((t, i) => (
-            <li key={`${t.id}-${i}`}>
-              <span className="mono live-n" aria-hidden="true">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-              <Art id={t.id} className="mini-art" />
-              <span className="row-text">
-                <span className="row-title">{t.title}</span>
-                <span className="row-meta">{t.artist}</span>
-              </span>
+          {r.queue.slice(0, 12).map((t, i) => (
+            <li key={t.k}>
+              <button
+                className="live-queue-main"
+                onClick={() => player.playList(player.queue, at(t))}
+                disabled={!can || at(t) < 0}
+                aria-label={`Play “${t.title}” now`}
+              >
+                <span className="mono live-n" aria-hidden="true">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <Art id={t.id} className="mini-art" />
+                <span className="row-text">
+                  <span className="row-title">{t.title}</span>
+                  <span className="row-meta">
+                    {t.artist}
+                    {t.by ? ` · added by ${t.by}` : ''}
+                  </span>
+                </span>
+              </button>
+              {can && (
+                <button className="icon-btn" onClick={() => at(t) > 0 && player.removeAt(at(t))} aria-label={`Remove “${t.title}”`} title="Remove">
+                  <X size={18} strokeWidth={1.75} />
+                </button>
+              )}
             </li>
           ))}
         </ol>
       ) : (
         <p className="field-hint">Nothing queued yet.</p>
       )}
-      {role === 'guest' ? (
-        <div className="live-add">
-          <p className="field-hint">Tap any song in Search or your library to add it to {r.hostName}'s queue.</p>
-          <button className="pill pill-quiet" onClick={() => nav.go({ name: 'library' })}>
-            <ListPlus size={16} strokeWidth={2} aria-hidden="true" /> Add a song
-          </button>
-        </div>
-      ) : (
-        <p className="field-hint">Songs people send you join the end of this list.</p>
+      {r.queue.length > 12 && (
+        <button className="text-btn" onClick={() => nav.go({ name: 'queue' })}>
+          See all {r.queue.length}
+        </button>
       )}
+      <div className="live-add">
+        <p className="field-hint">
+          {can ? 'Tap any song in Search or your library to play it now, or use its menu to add it to up next.' : `${r.hostName} is keeping control. Tap any song in Search or your library to send it to them.`}
+        </p>
+        <button className="pill pill-quiet" onClick={() => nav.go({ name: 'library' })}>
+          <ListPlus size={16} strokeWidth={2} aria-hidden="true" /> Add a song
+        </button>
+      </div>
+    </section>
+  )
+}
+
+/** Host only: whether everyone can control the music. */
+function Control({ on }: { on: boolean }) {
+  return (
+    <section className="live-section" aria-label="Who controls the music">
+      <label className="switch-row">
+        <span>
+          <span className="switch-title">Everyone can control the music</span>
+          <span className="switch-sub">
+            {on ? 'Anyone here can play, pause, skip and edit up next.' : 'Only you can. Others can still send you songs, which join the end of up next.'}
+          </span>
+        </span>
+        <input type="checkbox" role="switch" checked={on} onChange={(e) => room.setEveryone(e.target.checked)} />
+      </label>
     </section>
   )
 }
@@ -417,9 +444,10 @@ export function RoomPage() {
         </Stage>
 
         {role === 'host' && <Invite id={rs.id} hostName={r.hostName} />}
+        {role === 'host' && <Control on={r.everyone} />}
 
         <div className="live-grid">
-          <UpNext r={r} role={role} />
+          <UpNext r={r} />
           <div className="live-col">
             <People members={rs.members} r={r} me={rs.me} canRemove={role === 'host'} />
             <Activity feed={rs.feed} />
@@ -488,7 +516,7 @@ export function RoomPage() {
         busy={busy}
         onSubmit={async (n) => {
           setBusy(true)
-          await room.start(n, { track: player.current, queue: player.queue.slice(player.pos + 1), playing: player.playing, pos: player.time })
+          await room.start(n, { track: player.current, playing: player.playing, pos: player.time })
           setBusy(false)
         }}
       />
@@ -513,13 +541,13 @@ export function RoomPage() {
         <li>
           <ListPlus size={20} strokeWidth={1.75} aria-hidden="true" />
           <span>
-            <strong>Friends add songs.</strong> Their picks join the end of your queue.
+            <strong>Everyone plays DJ.</strong> Anyone can skip, pause and edit up next, on every screen at once.
           </span>
         </li>
         <li>
           <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
           <span>
-            <strong>You're in control.</strong> Only you can skip or pause, and you can remove anyone.
+            <strong>You stay in charge.</strong> Keep control to yourself at any time, and remove anyone.
           </span>
         </li>
       </ul>

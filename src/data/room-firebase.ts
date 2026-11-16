@@ -1,6 +1,6 @@
 import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth'
 import {
-  arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, serverTimestamp, setDoc, Timestamp, updateDoc, writeBatch,
+  arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, getFirestore, onSnapshot, runTransaction, serverTimestamp, setDoc, Timestamp, updateDoc, writeBatch,
   type DocumentData, type QueryDocumentSnapshot,
 } from 'firebase/firestore'
 import { firebaseApp } from './firebase'
@@ -73,16 +73,43 @@ export function roomBackend(): RoomBackend {
     async update(id, patch) {
       await updateDoc(room(id), { ...patch, expires: expires() })
     },
+    /** Reads the session and writes the change in one step; retried automatically if someone else changed it meanwhile. */
+    async transact(id, change) {
+      return runTransaction(db, async (tx) => {
+        const snap = await tx.get(room(id))
+        if (!snap.exists()) return false
+        const r = snap.data() as RoomData & { expires?: unknown }
+        if (r.ended || ms(r.expires) < Date.now()) return false
+        const patch = change(r)
+        if (!patch) return false
+        tx.update(room(id), { ...patch, expires: expires() })
+        return true
+      })
+    },
     watch(id, cb, fail) {
-      return onSnapshot(
+      let gone = 0
+      const stop = onSnapshot(
         room(id),
         (s) => {
-          if (!s.exists()) return cb(null)
+          // Only what the server accepted: a change made here that the rules refuse is never shown, even for a moment.
+          if (s.metadata.hasPendingWrites) return
+          if (!s.exists()) {
+            // A delete from this device shows up at once, before the server answers, and comes back if it's refused.
+            // So only believe it after a short wait. (A host ending the session also marks it "ended" first.)
+            window.clearTimeout(gone)
+            gone = window.setTimeout(() => cb(null), 2000)
+            return
+          }
+          window.clearTimeout(gone)
           const r = s.data() as RoomData & { expires?: unknown }
           cb({ ...r, banned: r.banned ?? [], ended: r.ended || ms(r.expires) < Date.now() })
         },
         (e) => fail(e),
       )
+      return () => {
+        window.clearTimeout(gone)
+        stop()
+      }
     },
     members(id, cb) {
       return onSnapshot(sub(id, 'members'), (s) => cb(s.docs.map((d) => ({ uid: d.id, name: String(data(d).name ?? ''), at: ms(data(d).at) }))))

@@ -15,7 +15,8 @@ export type PlayerApi = {
   shuffle: boolean
   repeat: Repeat
   muted: boolean
-  playList: (list: Track[], index: number) => void
+  /** Play a list from `index`. `whole`: the "Play" / "Shuffle" buttons, which also make the rest of the list up next in a session. */
+  playList: (list: Track[], index: number, whole?: boolean | 'shuffle') => void
   toggle: () => void
   next: () => void
   prev: () => void
@@ -24,6 +25,7 @@ export type PlayerApi = {
   addToQueue: (t: Track) => void
   removeAt: (i: number) => void
   move: (from: number, to: number) => void
+  clearQueue: () => void
   setShuffle: (on: boolean) => void
   cycleRepeat: () => void
   setVolume: (v: number) => void

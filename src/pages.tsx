@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { ChartColumn, ChevronLeft, Clock, Download, ExternalLink, Heart, Link2, ListMusic, Plus, Search as SearchIcon, Share, Upload, Users, X } from 'lucide-react'
+import { ArrowUp, ChartColumn, ChevronLeft, Clock, Download, ExternalLink, Heart, Link2, ListMusic, Plus, Search as SearchIcon, Share, Upload, Users, X } from 'lucide-react'
 import { artistSongs, cleanArtist, importPlaylist, playlistId, regionName, search, trending, usesProxy, youtubeQueueLink } from './data/youtube'
 import { isLocalOrigin, shareLink } from './data/share'
 import {
@@ -15,6 +15,7 @@ import { YouTubeSetup } from './components/YouTubeSetup'
 import { QuotaHint, QuotaMeter } from './components/quota'
 import { canKeepAwake } from './app/wakelock'
 import { useRoom } from './data/room'
+import type { QItem } from './data/queue-ops'
 
 const EXPLORE = ['Pop hits', 'Hip-hop', 'R&B', 'Bollywood', 'K-pop', 'Latin', 'Afrobeats', 'Rock', 'EDM', 'Lo-fi', 'Chill', 'Workout', 'Focus', 'Party', 'Throwbacks', 'Country']
 
@@ -797,6 +798,7 @@ export function PlaylistPage({ id }: { id: string }) {
 
 export function Queue() {
   const player = usePlayer()
+  const shared = useRoom().phase === 'live'
   const upNext = player.queue.slice(player.pos + 1)
   return (
     <div className="page">
@@ -835,13 +837,23 @@ export function Queue() {
           <Shelf title="Now playing">
             <TrackRows list={[player.current]} />
           </Shelf>
-          <Shelf title="Up next">
+          <Shelf
+            title="Up next"
+            action={
+              upNext.length ? (
+                <button className="text-btn" onClick={player.clearQueue}>
+                  Clear
+                </button>
+              ) : undefined
+            }
+          >
+            {shared && <p className="field-hint">Shared with everyone in this session. Changes show on every screen.</p>}
             {upNext.length ? (
               <ul className="rows">
                 {upNext.map((t, i) => {
                   const qi = player.pos + 1 + i
                   return (
-                    <li key={`${t.id}-${qi}`} className="row">
+                    <li key={(t as QItem).k ?? `${t.id}-${qi}`} className="row">
                       <button className="row-main" onClick={() => player.playList(player.queue, qi)} aria-label={`Play “${t.title}” now`}>
                         <span className="row-art-wrap">
                           <Art id={t.id} className="row-art" />
@@ -852,6 +864,15 @@ export function Queue() {
                         </span>
                         <span className="row-time">{t.duration ? fmtTime(t.duration) : ''}</span>
                       </button>
+                      <button
+                        className="icon-btn"
+                        onClick={() => player.move(qi, qi - 1)}
+                        disabled={i === 0}
+                        aria-label={`Move “${t.title}” up`}
+                        title="Move up"
+                      >
+                        <ArrowUp size={18} strokeWidth={1.75} />
+                      </button>
                       <button className="icon-btn" onClick={() => player.removeAt(qi)} aria-label={`Remove “${t.title}” from the queue`} title="Remove">
                         <X size={18} strokeWidth={1.75} />
                       </button>
@@ -861,7 +882,13 @@ export function Queue() {
               </ul>
             ) : (
               <div className="notice">
-                <p>{store.get().autoplay ? 'Nothing queued. When this song ends, Aether keeps going with more from the same artist.' : 'Nothing queued.'}</p>
+                <p>
+                  {shared
+                    ? 'Nothing queued. Add songs from Search or your library, and they play next for everyone.'
+                    : store.get().autoplay
+                      ? 'Nothing queued. When this song ends, Aether keeps going with more from the same artist.'
+                      : 'Nothing queued.'}
+                </p>
               </div>
             )}
           </Shelf>

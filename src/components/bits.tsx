@@ -346,7 +346,7 @@ export function Loadable<T>({ a, empty, children, skeleton = 'rows' }: { a: Asyn
 export function PlayAll({ list, label = 'Play' }: { list: Track[]; label?: string }) {
   const player = usePlayer()
   return (
-    <button className="pill pill-accent" onClick={() => list.length && player.playList(list, 0)} disabled={!list.length}>
+    <button className="pill pill-accent" onClick={() => list.length && player.playList(list, 0, true)} disabled={!list.length}>
       <Play size={16} strokeWidth={0} fill="currentColor" aria-hidden="true" /> {label}
     </button>
   )
@@ -359,8 +359,7 @@ export function ShuffleAll({ list }: { list: Track[] }) {
       className="pill pill-quiet"
       onClick={() => {
         if (!list.length) return
-        player.setShuffle(true)
-        player.playList(list, Math.floor(Math.random() * list.length))
+        player.playList(list, Math.floor(Math.random() * list.length), 'shuffle')
       }}
       disabled={!list.length}
     >

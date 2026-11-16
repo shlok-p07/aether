@@ -51,9 +51,11 @@ Play music with other people at the same moment, wherever they are. Select **Lis
 
 The session screen shows the song with a live sync readout (for example, **In sync · 0.2s**), what's up next, who's listening, and an activity log of joins, songs, requests and loves.
 
-- **You stay in control:** only the host can skip, pause or seek. Listeners can pause for themselves and select **Play along** to catch up.
-- **Requests:** listeners tap any song in Search or their library, and it joins the end of the host's queue.
-- **Reactions:** listeners can send a **Love** for the song that's playing, and everyone sees it.
+- **Everyone plays DJ:** anyone in the session can play, pause, skip, go back, seek, set repeat and shuffle, and add, remove, reorder or clear up next. Tap a song in up next to play it. Every change shows on every screen within a moment, and changes made at the same time all land.
+- **Starting fresh:** a session starts with just the song you're playing. Your own queue isn't added.
+- **Playing a song:** tapping a song in your library plays it now for everyone and leaves up next as it is. **Play** and **Shuffle** on a playlist replace up next with that playlist.
+- **Keeping control:** the host can turn off **Everyone can control the music**. Then only the host changes the music, and others can send songs (one every 10 seconds), which join the end of up next.
+- **Reactions:** anyone can send a **Love** for the song that's playing, and everyone sees it.
 - **Staying in sync:** each listener's player corrects itself when it drifts more than 2 seconds from the host.
 - **Ending:** the session lasts until the host selects **End session**, or 12 hours after the host was last active. Reloading the page doesn't end it.
 
@@ -64,11 +66,11 @@ The database rules enforce these limits, so a modified copy of the app can't get
 | Limit | Value |
 |---|---|
 | New sessions | One a minute per person. Starting a new session deletes your previous one. |
-| Song requests | One every 10 seconds per listener. |
+| Song requests | One every 10 seconds per listener (when the host keeps control). |
 | Loves | One every 5 seconds per listener. |
 | Removing a listener | The host can remove anyone. Removed listeners can't rejoin that session. |
 | What can be sent | Only real YouTube video IDs, names up to 24 characters, and at most 50 songs in up next. |
-| Control | Only the host can change the session. Listeners can't read each other's requests. |
+| Control | Only the host can change who hosts, who can control the music, who's removed, and end the session. Others can change playback and up next only while the host allows it, and every change is signed with who made it. Listeners can't read each other's requests. |
 
 Listen together needs [Firebase set up](#setting-up-sign-in-and-sync), with anonymous sign-in turned on.
 

@@ -3166,3 +3166,41 @@ a.pill {
   border-radius: 0;
   box-shadow: none;
 }
+
+/* Session up next: each entry plays when tapped (when you can control the music) and has a remove button. */
+.live-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.live-queue li {
+  gap: 4px;
+}
+.live-queue-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 8px 0 0;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.live-queue-main:disabled {
+  opacity: 1;
+}
+@media (hover: hover) {
+  .live-queue-main:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}
+.live-queue-main .row-text {
+  flex: 1;
+  min-width: 0;
+}

@@ -3,7 +3,7 @@ rules_version = '2';
 // Aether's database rules.
 // - users/{uid}: each signed-in person's synced library, readable and writable only by them.
 // - rooms/{room}: "Listen together" sessions. Anyone signed in (listeners are signed in anonymously) who has the
-//   unguessable link can read a session; only its host can change it. Listeners can add themselves, ask for songs
+//   unguessable link can read a session. The host can change it; so can anyone in it while the host lets everyone control the music. Listeners can add themselves, ask for songs
 //   and send reactions, each rate-limited here; the host can remove (and block) a listener.
 // - hosts/{uid}: rate-limits new sessions to one a minute per person.
 // Deploy with: firebase deploy --only firestore:rules
@@ -38,20 +38,39 @@ service cloud.firestore {
         && t.id is string && t.id.matches('^[A-Za-z0-9_-]{11}$')
         && shortText(t.title, 300) && shortText(t.artist, 200);
     }
+    // A song in a session: a track plus its own key (so the same song can be queued twice) and who added it.
+    function isItem(t) {
+      return t is map
+        && t.keys().hasAll(['id', 'title', 'artist', 'k'])
+        && t.keys().hasOnly(['id', 'title', 'artist', 'channelId', 'duration', 'k', 'by'])
+        && t.id is string && t.id.matches('^[A-Za-z0-9_-]{11}$')
+        && shortText(t.title, 300) && shortText(t.artist, 200)
+        && shortText(t.k, 16) && (!('by' in t) || shortText(t.by, 24));
+    }
     // Sessions carry an "expires" time, pushed forward while the host is active. After it passes, the session is closed:
     // nobody can join, ask for songs or react. (Automatic deletion would need a billing account; Aether stays free.)
     function expiresSoon(e) {
       return e is timestamp && e < request.time + duration.value(13, 'h');
     }
     function validRoom(d) {
-      return d.keys().hasOnly(['host', 'hostName', 'track', 'queue', 'playing', 'pos', 'at', 'ended', 'v', 'created', 'banned', 'expires'])
+      return d.keys().hasOnly(['host', 'hostName', 'everyone', 'track', 'queue', 'past', 'playing', 'pos', 'at', 'seq', 'repeat', 'shuffle', 'order', 'act', 'ended', 'v', 'created', 'banned', 'expires'])
         && name(d.hostName)
-        && (d.track == null || isTrack(d.track))
-        && d.queue is list && d.queue.size() <= 50
+        && d.everyone is bool
+        && (d.track == null || isItem(d.track))
+        && d.queue is list && d.queue.size() <= 100
+        && d.past is list && d.past.size() <= 20
+        && (d.order == null || (d.order is list && d.order.size() <= 100))
         && d.playing is bool && d.pos is number && d.at is number
+        && d.seq is int && d.repeat in ['off', 'all', 'one'] && d.shuffle is bool
+        && d.act is map && d.act.keys().hasOnly(['by', 'uid', 'kind', 'what']) && name(d.act.by) && shortText(d.act.kind, 16) && shortText(d.act.what, 300)
         && d.ended is bool
         && d.banned is list && d.banned.size() <= 100
         && expiresSoon(d.expires);
+    }
+    // The fields anyone in the session may change when the host lets everyone control the music.
+    function playbackOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['track', 'queue', 'past', 'playing', 'pos', 'at', 'seq', 'repeat', 'shuffle', 'order', 'act', 'expires']);
     }
     function roomData(room) {
       return get(/databases/$(database)/documents/rooms/$(room)).data;
@@ -89,10 +108,19 @@ service cloud.firestore {
         && request.resource.data.banned.size() == 0
         && getAfter(/databases/$(database)/documents/hosts/$(request.auth.uid)).data.room == room
         && getAfter(/databases/$(database)/documents/hosts/$(request.auth.uid)).data.at == request.time;
+      // The host can change anything. Anyone else in the session can play, pause, skip and edit the queue
+      // when the host lets everyone control the music, as long as the session is open and they weren't removed.
       allow update: if signedIn()
-        && resource.data.host == request.auth.uid
+        && validRoom(request.resource.data)
         && request.resource.data.host == resource.data.host
-        && validRoom(request.resource.data);
+        && (resource.data.host == request.auth.uid
+          || (resource.data.everyone == true
+            && resource.data.ended == false
+            && resource.data.expires > request.time
+            && !(request.auth.uid in resource.data.banned)
+            && exists(/databases/$(database)/documents/rooms/$(room)/members/$(request.auth.uid))
+            && request.resource.data.act.uid == request.auth.uid
+            && playbackOnly()));
       allow delete: if signedIn() && resource.data.host == request.auth.uid;
 
       // Who's listening: one record per person, refreshed while they listen.

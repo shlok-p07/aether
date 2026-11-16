@@ -6,11 +6,12 @@ import { readShareLink } from './data/share'
 import { ambientColor } from './data/ambient'
 import { sync } from './data/sync'
 import { useKeepAwake } from './app/wakelock'
-import { expectedPos, readRoomHash, room, setRequestHandler, useRoom } from './data/room'
+import { readRoomHash, room, useRoom } from './data/room'
+import { nextRepeat, ops, posNow, type QItem } from './data/queue-ops'
 import { RoomChip, RoomPage } from './components/room'
 import { Stage } from './components/stage'
 import { stage as fullView, useStage } from './app/stage'
-import { NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
+import { fmtTime, NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
 import { YouTubeStage, type YTHandle, type YTState } from './components/YouTubeStage'
 import { NowPlaying, PlayerBar, Sidebar, TabBar } from './components/chrome'
 import { Artist, History, Home, Library, Liked, PlaylistPage, Queue, Search, Settings, Shared, SongPage, Stats } from './pages'
@@ -70,28 +71,19 @@ export default function App() {
   const st = useRef({ queue, pos, repeat, time, current, shuffle, duration, loading, playing })
   st.current = { queue, pos, repeat, time, current, shuffle, duration, loading, playing }
 
-  // ---- listen together: a listener's player follows the host instead of its own queue ----
+  // ---- listen together: in a session, the session is the player. Every control changes it, every device follows it. ----
   const rs = useRoom()
-  const isGuest = rs.phase === 'live' && rs.role === 'guest'
-  const isHost = rs.phase === 'live' && rs.role === 'host'
+  const live = rs.phase === 'live' && !!rs.room
   const roomRef = useRef(rs)
   roomRef.current = rs
-  const [localPause, setLocalPause] = useState(false) // a listener paused just for themselves
-  const localPauseRef = useRef(false)
-  localPauseRef.current = localPause
   const lastSeek = useRef(0)
-  const guestNow = () => roomRef.current.phase === 'live' && roomRef.current.role === 'guest'
+  const [nudge, setNudge] = useState(0) // follow the session again after a change from here didn't go through
+  const inSession = () => roomRef.current.phase === 'live' && !!roomRef.current.room
   const hostName = () => roomRef.current.room?.hostName || 'The host'
-  /** A listener asked to change playback: explain why they can't, and say so once. */
-  const guestOnly = (what: string) => {
-    if (!guestNow()) return false
-    setToast(`${hostName()} ${what} in this session.`)
-    return true
-  }
   const sendRequest = (t: Track) => {
     room
       .request(t)
-      .then(() => setToast(`Sent “${t.title}” to ${hostName()}'s queue.`))
+      .then(() => setToast(`Sent “${t.title}” to ${hostName()}.`))
       .catch((e) =>
         setToast(
           (e as Error).message === 'wait'
@@ -99,6 +91,25 @@ export default function App() {
             : `Couldn't send “${t.title}”. Check your connection and try again.`,
         ),
       )
+  }
+  /** Run a change on the session's shared queue. `none` is said if there was nothing to change, `done` when it worked. */
+  const shared = (kind: string, what: string, change: Parameters<typeof room.command>[2], msg: { none?: string; done?: string } = {}) => {
+    if (!room.canControl()) {
+      setToast(`${hostName()} is keeping control of the music. You can still send songs.`)
+      setNudge((n) => n + 1)
+      return
+    }
+    room
+      .command(kind, what, change)
+      .then((ok) => {
+        if (!ok) setNudge((n) => n + 1)
+        if (!ok && msg.none) setToast(msg.none)
+        else if (ok && msg.done) setToast(msg.done)
+      })
+      .catch(() => {
+        setNudge((n) => n + 1)
+        setToast("Couldn't reach the session. Check your connection and try again.")
+      })
   }
 
   // ---- listening log: seconds actually heard (seeking doesn't count), and whether the song was skipped ----
@@ -165,17 +176,32 @@ export default function App() {
     }
   }, [time, current, duration])
 
-  const playList = useCallback((list: Track[], index: number) => {
+  const playList = useCallback((list: Track[], index: number, whole?: boolean | 'shuffle') => {
     if (!list.length) return
-    if (guestNow()) return sendRequest(list[index] ?? list[0])
+    if (inSession()) {
+      const s = st.current
+      const t = list[index] ?? list[0]
+      // A song in up next: jump straight to it, for everyone.
+      if (list === s.queue) {
+        if (index === s.pos) return shared('play', '', (x, now) => ops.play(x, now))
+        const k = (t as QItem).k
+        if (k) shared('jump', t.title, (x, now) => ops.jump(x, k, now), { none: 'That song is no longer in up next.' })
+        return
+      }
+      if (!room.canControl()) return sendRequest(t)
+      // "Play" or "Shuffle" on a list replaces up next; tapping one song plays it now and leaves up next alone.
+      if (whole) return shared('list', t.title, (x, now, by) => ops.playList(x, list, index, by, now, whole === 'shuffle'))
+      return shared('playNow', t.title, (x, now, by) => ops.playNow(x, t, by, now))
+    }
     wantPlay.current = true
     setToast(null)
     const s = st.current
+    if (whole === 'shuffle') setShuffleState(true)
     if (s.current && list[index]?.id === s.current.id && s.queue === list) {
       yt.current?.play()
       return
     }
-    if (s.shuffle) {
+    if (s.shuffle || whole === 'shuffle') {
       // keep the chosen song first, shuffle the rest
       unshuffled.current = list
       setQueue([list[index], ...shuffled(list.filter((_, i) => i !== index))])
@@ -190,22 +216,23 @@ export default function App() {
   const toggle = useCallback(() => {
     const s = st.current
     if (!s.current) return
-    if (guestNow()) {
-      // A listener can pause for themselves; playing again jumps back to where everyone else is.
-      if (playing) {
-        setLocalPause(true)
-        wantPlay.current = false
-        yt.current?.pause()
-      } else if (!roomRef.current.room?.playing) {
-        setToast(`${hostName()} paused the music.`)
-      } else {
-        setLocalPause(false)
+    if (inSession()) {
+      const r = roomRef.current.room!
+      if (r.playing && !playing) {
+        // The session is playing but this device isn't (the browser held it back): play along.
         if (!listening.current) startListen(s.current)
         wantPlay.current = true
         lastSeek.current = 0
         yt.current?.play()
+        return
       }
-      return
+      if (room.canControl()) {
+        // Answer at once here; everyone else follows within a moment.
+        wantPlay.current = !r.playing
+        if (r.playing) yt.current?.pause()
+        else yt.current?.play()
+      }
+      return shared(r.playing ? 'pause' : 'play', '', (x, now) => (x.playing ? ops.pause(x, now) : ops.play(x, now)))
     }
     if (playing) {
       wantPlay.current = false
@@ -274,6 +301,7 @@ export default function App() {
   }, [])
 
   const setShuffle = useCallback((on: boolean) => {
+    if (inSession()) return shared('shuffle', on ? 'on' : 'off', (x) => ops.setShuffle(x, on))
     setShuffleState(on)
     const s = st.current
     if (!s.queue.length) return
@@ -289,11 +317,20 @@ export default function App() {
     }
   }, [])
 
-  const cycleRepeat = useCallback(() => setRepeat((r) => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off')), [])
+  const cycleRepeat = useCallback(() => {
+    if (inSession()) {
+      const n = nextRepeat(roomRef.current.room!.repeat)
+      return shared('repeat', n === 'one' ? 'to this song' : n === 'all' ? 'to everything' : 'off', (x) => ops.setRepeat(x, nextRepeat(x.repeat)))
+    }
+    setRepeat((r) => (r === 'off' ? 'all' : r === 'all' ? 'one' : 'off'))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToQueue = useCallback(
     (t: Track) => {
-      if (guestNow()) return sendRequest(t)
+      if (inSession()) {
+        if (!room.canControl()) return sendRequest(t)
+        return shared('add', t.title, (x, now, by) => ops.add(x, [t], by, now), { none: 'Up next is full (100 songs).', done: `Added “${t.title}” to up next.` })
+      }
       if (!st.current.current) return playList([t], 0)
       setQueue((q) => [...q, t])
     },
@@ -309,37 +346,61 @@ export default function App() {
       loading,
       time,
       duration,
-      shuffle,
-      repeat,
+      shuffle: live ? rs.room!.shuffle : shuffle,
+      repeat: live ? rs.room!.repeat : repeat,
       muted,
       playList,
       toggle,
-      next: () => guestOnly('chooses when to skip') || next(false),
-      prev: () => guestOnly('chooses when to skip') || prev(),
+      next: () => (inSession() ? shared('next', '', (x, now) => ops.next(x, now), { none: 'Nothing queued after this song.' }) : next(false)),
+      prev: () => (inSession() ? shared('prev', '', (x, now) => ops.prev(x, now)) : prev()),
       seek: (t) => {
-        if (guestOnly('controls where the song is')) return
+        if (inSession()) {
+          if (!room.canControl()) return shared('seek', '', () => null)
+          lastSeek.current = Date.now()
+          yt.current?.seek(t)
+          setTime(t)
+          return shared('seek', fmtTime(t), (x, now) => ops.seek(x, t, now))
+        }
         yt.current?.seek(t)
         setTime(t)
       },
       playNext: (t) => {
-        if (guestNow()) return sendRequest(t)
+        if (inSession()) {
+          if (!room.canControl()) return sendRequest(t)
+          return shared('playNext', t.title, (x, now, by) => ops.playNext(x, t, by, now), { done: `“${t.title}” plays next.` })
+        }
         if (!st.current.current) return playList([t], 0)
         setQueue((q) => [...q.slice(0, st.current.pos + 1), t, ...q.slice(st.current.pos + 1)])
       },
       addToQueue,
       removeAt: (i) => {
         if (i === st.current.pos) return
+        if (inSession()) {
+          const it = st.current.queue[i] as QItem | undefined
+          if (it?.k) shared('remove', it.title, (x) => ops.remove(x, it.k))
+          return
+        }
         setQueue((q) => q.filter((_, j) => j !== i))
         if (i < st.current.pos) setPos((p) => p - 1)
       },
-      move: (from, to) =>
+      move: (from, to) => {
+        if (inSession()) {
+          const it = st.current.queue[from] as QItem | undefined
+          if (it?.k && to > st.current.pos) shared('move', it.title, (x) => ops.move(x, it.k, to - st.current.pos - 1))
+          return
+        }
         setQueue((q) => {
           if (to <= st.current.pos || to >= q.length) return q
           const a = [...q]
           const [m] = a.splice(from, 1)
           a.splice(to, 0, m)
           return a
-        }),
+        })
+      },
+      clearQueue: () => {
+        if (inSession()) return shared('clear', '', (x) => ops.clear(x))
+        setQueue((q) => q.slice(0, st.current.pos + 1))
+      },
       setShuffle,
       cycleRepeat,
       setVolume: (v) => {
@@ -348,7 +409,7 @@ export default function App() {
       },
       toggleMute: () => setMuted((m) => !m),
     }),
-    [queue, pos, current, playing, loading, time, duration, shuffle, repeat, muted, playList, toggle, next, prev, setShuffle, cycleRepeat, addToQueue], // eslint-disable-line react-hooks/exhaustive-deps
+    [queue, pos, current, playing, loading, time, duration, shuffle, repeat, muted, playList, toggle, next, prev, setShuffle, cycleRepeat, addToQueue, live, rs.room?.shuffle, rs.room?.repeat], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   useEffect(() => {
@@ -365,8 +426,17 @@ export default function App() {
       else if (s === 'buffering') setLoading(true)
       else if (s === 'ended') {
         finishListen('ended')
-        if (guestNow()) setPlaying(false) // the host moves everyone on
-        else next(true)
+        if (inSession()) {
+          // Every device reports the end; the session moves on once, from whichever report arrives first.
+          // A late report (about a song the session already replaced, or one the session thinks is still mid-way) is
+          // ignored, and this device simply catches up with the session.
+          setPlaying(false)
+          const r = roomRef.current.room!
+          const here = st.current
+          const end = here.duration || r.track?.duration || 0
+          const real = !!r.track && here.current?.id === r.track.id && (!end || posNow(r) >= end - 5)
+          if (real && room.canControl()) room.command('auto', '', (x, now) => ops.ended(x, r.seq, now)).catch(() => {})
+        } else next(true)
       }
     },
     [next, finishListen],
@@ -377,16 +447,11 @@ export default function App() {
     const rr = roomRef.current
     const s = st.current
     if (rr.phase === 'live' && rr.room?.track && s.current?.id === rr.room.track.id && !s.loading) {
-      if (rr.role === 'guest') {
-        // Stay with the host: correct drift of more than 2 seconds, at most every 4 seconds so slow connections can catch up.
-        const want = expectedPos(rr.room)
-        const off = Math.abs(t - want) > 2 && (!d || want < d - 1)
-        if (off && (rr.room.playing ? !localPauseRef.current : true) && Date.now() - lastSeek.current > 4000) {
-          lastSeek.current = Date.now()
-          yt.current?.seek(want)
-        }
-      } else if (rr.role === 'host' && room.hostTick(s.current.id, t)) {
-        room.publish({ track: s.current, queue: s.queue.slice(s.pos + 1), playing: s.playing, pos: t })
+      // Stay with the session: correct drift of more than 2 seconds, at most every 4 seconds so slow connections can catch up.
+      const want = posNow(rr.room)
+      if (Math.abs(t - want) > 2 && (!d || want < d - 1) && Date.now() - lastSeek.current > 4000) {
+        lastSeek.current = Date.now()
+        yt.current?.seek(want)
       }
     }
     if (listening.current) {
@@ -400,8 +465,12 @@ export default function App() {
       const t = st.current.current
       finishListen('quiet')
       setLoading(false)
-      if (guestNow()) {
-        setToast(`“${t?.title ?? 'This song'}” won't play on this device. You'll rejoin with the next song.`)
+      if (inSession()) {
+        // A song its owner keeps to youtube.com won't play for anyone, so move the session on; otherwise just this device.
+        const blocked = code === 101 || code === 150
+        setToast(blocked ? `Skipped “${t?.title ?? 'a song'}”: its owner only allows it on YouTube itself.` : `“${t?.title ?? 'This song'}” won't play on this device. You'll rejoin with the next song.`)
+        const seq = roomRef.current.room!.seq
+        if (blocked && room.canControl()) room.command('auto', '', (x, now) => ops.ended(x, seq, now)).catch(() => {})
         return
       }
       failures.current += 1
@@ -439,57 +508,57 @@ export default function App() {
     return () => window.removeEventListener('hashchange', open)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---- listen together ----
-  // Host: share every change, and add songs listeners ask for to the queue.
-  const lastPubId = useRef<string | null>(null)
-  useEffect(() => {
-    if (!isHost) return
-    const s = st.current
-    const sameSong = lastPubId.current === (current?.id ?? null)
-    lastPubId.current = current?.id ?? null
-    room.publish({ track: current, queue: queue.slice(pos + 1), playing: playing && !!current, pos: sameSong ? s.time : 0 })
-  }, [isHost, current?.id, pos, queue, playing]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    setRequestHandler((t, from) => {
-      addToQueue(t)
-      setToast(`${from} added “${t.title}”.`)
-    })
-  }, [addToQueue])
-
-  // Listener: follow the host's song and up-next list…
+  // ---- listen together: follow the session ----
+  // The song, up next, and whether it's playing come from the session; this device's player keeps in step.
   const r = rs.room
+  const followKey = useRef('')
   useEffect(() => {
-    if (!isGuest || !r) return
+    if (!live || !r) {
+      followKey.current = ''
+      return
+    }
     const s = st.current
     if (!r.track) {
-      if (s.current) {
+      if (s.current && s.playing) {
         wantPlay.current = false
         yt.current?.pause()
       }
       return
     }
     const q = [r.track, ...r.queue]
-    if (s.current?.id !== r.track.id || s.pos !== 0) {
-      wantPlay.current = r.playing && !localPauseRef.current
+    const key = `${r.track.k}:${r.seq}`
+    if (key !== followKey.current) {
+      followKey.current = key
       lastSeek.current = 0
-      setQueue(q)
-      setPos(0)
-    } else setQueue([s.current, ...r.queue])
-  }, [isGuest, r])
-  // …and play or pause with them.
+      if (s.current?.id === r.track.id && s.pos === 0) {
+        // The same video again (a replay, repeat one, or the same song twice in a row): start over without reloading.
+        setQueue(q)
+        counted.current = null
+        if (r.playing) {
+          if (s.current) startListen(s.current)
+          wantPlay.current = true
+          yt.current?.seek(posNow(r))
+          yt.current?.play()
+        }
+      } else {
+        wantPlay.current = r.playing
+        setQueue(q)
+        setPos(0)
+      }
+    } else setQueue(q)
+  }, [live, r, nudge]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!isGuest || !r?.track || current?.id !== r.track.id || loading) return
+    if (!live || !r?.track || current?.id !== r.track.id || loading) return
+    const end = duration || r.track.duration || 0
+    const over = end > 0 && posNow(r) >= end - 1
     if (!r.playing && playing) {
       wantPlay.current = false
       yt.current?.pause()
-    } else if (r.playing && !playing && !localPauseRef.current) {
+    } else if (r.playing && !playing && !over) {
       wantPlay.current = true
       yt.current?.play()
     }
-  }, [isGuest, r?.playing, r?.at, r?.track?.id, current?.id, playing, loading]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!isGuest) setLocalPause(false)
-  }, [isGuest])
+  }, [live, r?.playing, r?.at, r?.seq, r?.track?.k, current?.id, playing, loading, nudge]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Love reactions, and the end of a session, show as a message.
   useEffect(() => {

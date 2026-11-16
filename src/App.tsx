@@ -8,6 +8,8 @@ import { sync } from './data/sync'
 import { useKeepAwake } from './app/wakelock'
 import { expectedPos, readRoomHash, room, setRequestHandler, useRoom } from './data/room'
 import { RoomChip, RoomPage } from './components/room'
+import { Stage } from './components/stage'
+import { stage as fullView, useStage } from './app/stage'
 import { NavContext, PlayerContext, type NavApi, type Page, type PlayerApi, type Repeat } from './app/context'
 import { YouTubeStage, type YTHandle, type YTState } from './components/YouTubeStage'
 import { NowPlaying, PlayerBar, Sidebar, TabBar } from './components/chrome'
@@ -530,6 +532,7 @@ export default function App() {
       else if (k === 's') setShuffle(!st.current.shuffle)
       else if (k === 'r') cycleRepeat()
       else if (k === 'l' && st.current.current) actions.toggleLike(st.current.current)
+      else if (k === 'f' && st.current.current) fullView.toggle()
       else if (k === '/') {
         e.preventDefault()
         nav.go({ name: 'search' })
@@ -585,6 +588,12 @@ export default function App() {
     }
   }, [])
 
+  // The full-screen "now playing" view (desktop). It closes when there's nothing playing.
+  const staged = useStage()
+  useEffect(() => {
+    if (!current) fullView.close()
+  }, [current])
+
   // Phones: the player and tabs slide away while you scroll down a page, and come back when you scroll up,
   // reach the end, change page, or a message appears. The video stays, as YouTube requires.
   const [away, setAway] = useState(false)
@@ -615,7 +624,7 @@ export default function App() {
       <PlayerContext.Provider value={player}>
         <div
           ref={shell}
-          className={`app${current ? ' has-song' : ''}${away ? ' chrome-away' : ''}`}
+          className={`app${current ? ' has-song' : ''}${away ? ' chrome-away' : ''}${staged && current ? ' is-staged' : ''}`}
           style={{ ['--accent' as string]: ACCENTS[accent].color, ...(ambient ? { ['--ambient' as string]: ambient } : {}) }}
         >
           <Sidebar />
@@ -645,6 +654,7 @@ export default function App() {
             )}
           </div>
           <NowPlaying stage={stage} />
+          {staged && current && <Stage toast={toast} />}
           <div className="bottom" ref={bottom} onFocus={() => setAway(false)}>
             <RoomChip />
             <PlayerBar />

@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import {
   Home as HomeIcon, Library as LibraryIcon, ListMusic, Pause, Play, Repeat, Repeat1, Search, Settings as SettingsIcon, Shuffle, SkipBack,
-  SkipForward, Volume1, Volume2, VolumeX, LoaderCircle, Heart, ChevronUp, ChevronDown, MicVocal, Music,
+  SkipForward, Volume1, Volume2, VolumeX, LoaderCircle, Heart, ChevronUp, ChevronDown, MicVocal, Music, Maximize2,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { art } from '../data/youtube'
@@ -11,6 +11,7 @@ import { LyricsView } from './lyrics'
 import { AboutView } from './about'
 import { SidebarAccount } from './account'
 import { RoomNavItem } from './room'
+import { stage } from '../app/stage'
 
 const NAV: { page: Page; label: string; icon: ReactNode }[] = [
   { page: { name: 'home' }, label: 'Home', icon: <HomeIcon size={20} strokeWidth={1.75} aria-hidden="true" /> },
@@ -316,6 +317,9 @@ export function PlayerBar() {
       <div className="bar-end">
         <button className="icon-btn bar-more" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? 'Fewer player controls' : 'More player controls'}>
           {open ? <ChevronDown size={20} strokeWidth={1.75} /> : <ChevronUp size={20} strokeWidth={1.75} />}
+        </button>
+        <button className="icon-btn bar-stage" onClick={stage.open} aria-label="Open full view" title="Full view (F)" disabled={!t}>
+          <Maximize2 size={20} strokeWidth={1.75} />
         </button>
         <button className="icon-btn" onClick={() => nav.go({ name: 'queue' })} aria-label="Queue" title="Queue">
           <ListMusic size={20} strokeWidth={1.75} />

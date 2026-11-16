@@ -43,6 +43,7 @@ Aether plays songs in YouTube's official player and builds everything else aroun
 - **Mixes:** for DJ mixes and compilations, Aether explains why it can't show lyrics, lists the artists named in the title, and shows the uploader's tracklist with tap-to-jump.
 - **Ambient colour:** the playing song's artwork tints the interface.
 - **Controls:** keyboard shortcuts, media keys and lock-screen controls.
+- **Full view (desktop):** select the full-view button in the player, or press F, and the song takes the whole screen: the video large, synced lyrics gliding past with the current line filling as it's sung, the artwork's colour drifting behind, and a readout of your plays, when you first heard it, your place in the queue and what's next. Select **Full screen** to hide the browser too. Everything that moves follows real data (the song's position, lyric timings, your history); YouTube doesn't let web pages read its audio, so nothing pretends to react to the sound.
 
 ### Listen together
 
@@ -243,6 +244,8 @@ All users share one key's daily quota, so this setup suits a small group. Anyone
 | M | Mute or unmute |
 | L | Like or unlike the current song |
 | / | Open search |
+| F | Open or close the full view (desktop) |
+| Esc | Close the full view |
 
 ## Privacy
 

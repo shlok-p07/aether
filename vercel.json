@@ -1,0 +1,3 @@
+{
+  "rewrites": [{ "source": "/api/youtube/:endpoint", "destination": "/api/youtube?p=:endpoint" }]
+}

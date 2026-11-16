@@ -153,7 +153,8 @@ Aether reads these optional variables at build time. For local development, put 
 | Variable | Purpose |
 |---|---|
 | `VITE_YOUTUBE_KEY` | Pre-fills your API key for local development. |
-| `VITE_YOUTUBE_PROXY` | The URL of a [shared key server](#sharing-one-key-with-friends). When set, people can use Aether without a key of their own. |
+| `VITE_YOUTUBE_PROXY` | The address of a [shared key server](#sharing-one-key-with-friends), such as `/api/youtube` on Vercel. When set, people can use Aether without a key of their own. |
+| `YOUTUBE_API_KEY` | Server only (never `VITE_`): the key the built-in Vercel server uses. |
 | `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` | Turns on Google sign-in and sync. See [Setting up sign-in and sync](#setting-up-sign-in-and-sync). |
 
 Copy `.env.example` to `.env.local` and fill in the values you need:
@@ -224,13 +225,36 @@ Each person's library is one document that only they can read and write. Each Li
 
 ## Sharing one key with friends
 
-The `worker/` directory contains an optional [Cloudflare Worker](https://developers.cloudflare.com/workers/) that keeps one API key on the server. It allows only the read-only calls that Aether makes and caches responses at Cloudflare's edge.
+To let friends use Aether without a key of their own, keep one key on a server. When the deployment has a shared server, anyone without a personal key uses it automatically, so they skip the key setup entirely.
 
-1. Deploy the worker by following [worker/README.md](worker/README.md).
-2. In your hosting provider's environment settings, set `VITE_YOUTUBE_PROXY` to the worker's URL.
-3. Redeploy Aether.
+### Using the built-in server on Vercel
 
-All users share one key's daily quota, so this setup suits a small group. Anyone can still paste a personal key in **Settings**, and a personal key takes priority over the shared server.
+[`api/youtube.js`](api/youtube.js) is a Vercel Edge Function that holds the key:
+
+- It allows only the four read-only calls Aether makes, each with an allow-list of parameters.
+- It answers only pages on the same site.
+- It caches successful answers on Vercel's network (search for 24 hours, everything else for 1 hour), so a repeat search by anyone costs no quota.
+- The key never reaches anyone's browser.
+
+1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials), create an API key and, under **API restrictions**, restrict it to **YouTube Data API v3**.
+2. In Vercel, under **Settings** > **Environment Variables**, add:
+
+   | Name | Value | Type |
+   |---|---|---|
+   | `YOUTUBE_API_KEY` | Your key | Sensitive |
+   | `VITE_YOUTUBE_PROXY` | `/api/youtube` | Plain |
+
+3. Redeploy.
+
+To check that it works, open Aether in a private window. Home shows trending songs without asking for a key, and **Settings** > **YouTube** says **Connected through the shared Aether server**.
+
+### Using a Cloudflare Worker instead
+
+If you host Aether somewhere other than Vercel, the [`worker/`](worker/) directory contains the same server as a [Cloudflare Worker](https://developers.cloudflare.com/workers/). Deploy it by following [worker/README.md](worker/README.md), then set `VITE_YOUTUBE_PROXY` to the worker's URL and redeploy.
+
+### Sharing the quota
+
+Everyone on the shared server shares one key's daily quota of 10,000 units, about 100 new searches a day for the whole group (repeat searches come from the cache). It resets at midnight Pacific time. The YouTube Data API has no billing, so running out can't cost money; searches just pause until the reset. Anyone can still paste a personal key in **Settings** to get their own quota, and a personal key takes priority over the shared server. For more quota, request an increase through the [YouTube API quota form](https://support.google.com/youtube/contact/yt_api_form).
 
 ## Using keyboard shortcuts
 
